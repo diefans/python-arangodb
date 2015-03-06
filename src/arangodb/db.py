@@ -285,8 +285,8 @@ class Cursor(object):
 
         :param filter: concatenated by AND
         """
-        if isinstance(doc, BaseDocument):
-            collection = doc.__class__.__name__
+        if issubclass(doc, BaseDocument):
+            collection = doc.__name__
 
         else:
             collection = doc
