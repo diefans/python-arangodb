@@ -1,0 +1,18 @@
+# tests
+pytest
+pytest-pep8
+pytest-greendots
+pytest-cache
+pytest-cov==1.6
+pytest-random
+pytest-xdist
+
+mock
+
+# code
+pylint
+pylama
+pyflakes
+pep8
+pylama-pylint
+pylint-mccabe
