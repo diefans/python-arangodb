@@ -100,17 +100,6 @@ class User(db.Document):
         since = objective.Item(objective.UtcDateTime, missing=datetime.datetime.utcnow)
 
 
-class foo(db.Document):
-    pass
-
-
-class offers(db.Edge):
-    pass
-
-
-# pyramid specific
-
-
 @implementer(IArangoSession)
 class SessionPool(api.Session):
 
