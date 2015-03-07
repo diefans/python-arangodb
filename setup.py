@@ -30,10 +30,10 @@ class PyTest(TestCommand):
 
 setup(
     name="arangodb",
-    version="0.0.1",
+    version="0.0.2",
 
     package_dir={'': 'src'},
-    namespace_packages=[],
+    namespace_packages=['arangodb'],
     packages=find_packages(
         'src',
         exclude=[]
@@ -42,17 +42,6 @@ setup(
 
     install_requires=[
         'requests',
-
-        'objective',
-
-        # pyramid
-        'pyramid',
-
-        # zope
-        'zope.component',
-
-        # date
-        "pytz",
     ],
 
     cmdclass={'test': PyTest},

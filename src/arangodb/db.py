@@ -18,7 +18,7 @@ class MetaBase(type):
 
     classes = {}
 
-    session_factory = None
+    client_factory = None
 
     def __new__(mcs, name, bases, dct):
         cls = type.__new__(mcs, name, bases, dct)
@@ -36,12 +36,14 @@ class MetaBase(type):
             mcs.classes[cls.__name__] = cls
 
     @property
-    def session(cls):
-        if callable(cls.session_factory):
-            return cls.session_factory()
+    def client(cls):
+        """Resolves the client for this class."""
+
+        if callable(cls.client_factory):
+            return cls.client_factory()
 
         # just the default
-        return api.Session()
+        return api.SystemClient()
 
     @property
     def api(cls):
@@ -285,11 +287,14 @@ class Cursor(object):
 
         :param filter: concatenated by AND
         """
-        if issubclass(doc, BaseDocument):
+        if isinstance(doc, basestring):
+            collection = doc
+
+        elif issubclass(doc, BaseDocument):
             collection = doc.__name__
 
         else:
-            collection = doc
+            raise TypeError(":param doc: must be a string or a BaseDocument.")
 
         obj = 'obj'
 

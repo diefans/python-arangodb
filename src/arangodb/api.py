@@ -40,27 +40,30 @@ def json_result():
     return decorator
 
 
-class Session(object):
-    """A request session to save connects on upcomming requests."""
+class Client(object):
 
-    def __init__(self, endpoint="http://localhost:8529", session=None):
+    """A client for arangodb server."""
+
+    def __init__(self, database, endpoint="http://localhost:8529", session=None):
+        # default database
+        self.database = database
+
         self.endpoint = endpoint.rstrip("/")
 
         # use an external session
         self.session = session or requests.Session()
 
         # arango specific api
-        self.databases = Databases(self)
-        self.collections = Collections(self)
-        self.documents = Documents(self)
-        self.edges = Edges(self)
-        self.cursors = Cursors(self)
-        self.graphs = Graphs(self)
+        self.collections = Collections(self.api(self.database, 'collection'))
+        self.documents = Documents(self.api(self.database, 'document'))
+        self.edges = Edges(self.api(self.database, 'edge'))
+        self.cursors = Cursors(self.api(self.database, 'cursor'))
+        self.graphs = Graphs(self.api(self.database, 'gharial'))
 
     def url(self, *path):
-        """Joins the path to the url."""
+        """Return a full url to the arangodb server."""
 
-        return '/'.join(imap(str, chain((self.endpoint, '_api'), path)))
+        return '/'.join(imap(str, chain((self.endpoint, ), path)))
 
     @json_result()
     def get(self, *path, **kwargs):
@@ -85,27 +88,46 @@ class Session(object):
     def delete(self, *path, **kwargs):
         return self.session.delete(self.url(*path), **kwargs)
 
-    def __call__(self, *path, **kwargs):
+    def api(self, database, *path, **kwargs):
         """Just expose the HTTP methods to this session, by partially pre binding the path."""
 
-        return Api(self, *path, **kwargs)
+        if database is None:
+            prefix = ('_api', )
+
+        else:
+            prefix = ('_db', database, '_api')
+
+        return ApiProxy(self, *chain(prefix, path), **kwargs)
+
+
+class SystemClient(Client):
+
+    """A client to the system database of an arangodb server."""
+
+    def __init__(self, endpoint="http://localhost:8529", session=None):
+        super(SystemClient, self).__init__(None, endpoint=endpoint, session=session)
+
+        # database api is only allowed for system database
+        self.databases = Databases(self.api(None, 'database'))
+
+
+class ApiProxy(object):
+
+    """A Proxy to the session, partially preselect parts of the url and request parameter."""
+
+    def __init__(self, session, *path, **kwargs):
+        # wrap the session and preselect api
+        for method in ('get', 'post', 'put', 'patch', 'delete', 'head'):
+            setattr(self, method, partial(getattr(session, method), *path, **kwargs))
 
 
 class Api(object):
-
-    """Partially preselect parts of the session methods."""
-
-    def __init__(self, session, *api, **kwargs):
-        # wrap the session and preselect api
-        for method in ('get', 'post', 'put', 'patch', 'delete', 'head'):
-            setattr(self, method, partial(getattr(session, method), *api, **kwargs))
+    def __init__(self, api_proxy):
+        self.api = api_proxy
 
 
-class Databases(object):
+class Databases(Api):
     """Database stuff."""
-
-    def __init__(self, session):
-        self.api = session("database")
 
     @property
     def databases(self):
@@ -132,11 +154,8 @@ DOCUMENT_COLLECTION = 2
 EDGE_COLLECTION = 3
 
 
-class Collections(object):
+class Collections(Api):
     """Collection stuff."""
-
-    def __init__(self, session):
-        self.api = session('collection')
 
     def create(self, name, **kwargs):
         """Create a collection."""
@@ -156,11 +175,12 @@ class Collections(object):
         try:
             return self.api.get(*name, params=params)
 
-        except exc.CollectionNotFoundError:
+        except exc.CollectionNotFound:
             return None
 
 
-class DocumentsMixin(object):
+class DocumentsMixin(Api):
+
     def create(self, collection, doc, createCollection=None):
         """Create a document."""
 
@@ -212,15 +232,11 @@ class DocumentsMixin(object):
 
 
 class Documents(DocumentsMixin):
-    def __init__(self, session):
-        self.api = session("document")
+    pass
 
 
 class Edges(DocumentsMixin):
     """Edge stuff."""
-
-    def __init__(self, session):
-        self.api = session('edge')
 
     def create(self, collection, _from, _to, edge):
         params = {
@@ -232,10 +248,7 @@ class Edges(DocumentsMixin):
         return self.api.post(json=edge, params=params)
 
 
-class Graphs(object):
-
-    def __init__(self, session):
-        self.api = session('gharial')
+class Graphs(Api):
 
     def get(self, *name):
         result = self.api.get(*name)
@@ -267,9 +280,7 @@ def remap_fields(dct, *include, **mapping):
         yield mapping.get(k, k), v
 
 
-class Cursors(object):
-    def __init__(self, session):
-        self.api = session('cursor')
+class Cursors(Api):
 
     def create(self, query, bind=None, **kwargs):
         # https://docs.arangodb.com/HttpAqlQueryCursor/AccessingCursors.html

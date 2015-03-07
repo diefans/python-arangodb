@@ -65,5 +65,10 @@ class ApiError(ArangoException):
 class CollectionNotFound(ApiError):
     error_num = 1203
 
+
 class CollectionTypeInvalid(ApiError):
     error_num = 1218
+
+
+class DatabaseNotFound(ApiError):
+    error_num = 1228
