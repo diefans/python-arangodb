@@ -35,6 +35,12 @@ class MetaBase(type):
         else:
             mcs.classes[cls.__name__] = cls
 
+    @classmethod
+    def set_client_factory(mcs, factory):
+        """Set the client factory."""
+
+        mcs.client_factory = factory
+
     @property
     def client(cls):
         """Resolves the client for this class."""
@@ -88,7 +94,7 @@ class MetaDocumentBase(MetaBase):
 
     @property
     def api(cls):
-        return cls.session.documents
+        return cls.client.documents
 
     def deserialize(cls, doc):
         if cls.objective is not None:
@@ -121,7 +127,7 @@ class MetaEdgeBase(MetaDocumentBase):
 
     @property
     def api(cls):
-        return cls.session.edges
+        return cls.client.edges
 
 
 class BaseDocument(dict):
@@ -267,7 +273,7 @@ class MetaCursorBase(MetaBase):
 
     @property
     def api(cls):
-        return cls.session.cursors
+        return cls.client.cursors
 
 
 class Cursor(object):
