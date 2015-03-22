@@ -72,3 +72,7 @@ class CollectionTypeInvalid(ApiError):
 
 class DatabaseNotFound(ApiError):
     error_num = 1228
+
+
+class UniqueConstraintViolated(ApiError):
+    error_num = 1210
