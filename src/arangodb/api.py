@@ -5,6 +5,7 @@ from functools import wraps, partial
 from itertools import imap, chain
 
 import requests
+
 from . import exc
 
 
@@ -281,6 +282,12 @@ def remap_fields(dct, *include, **mapping):
 
 
 class Cursors(Api):
+
+    """
+    see https://github.com/arangodb/arangodb/issues/1285
+
+    no underscore in query bind var
+    """
 
     def create(self, query, bind=None, **kwargs):
         # https://docs.arangodb.com/HttpAqlQueryCursor/AccessingCursors.html

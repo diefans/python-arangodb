@@ -305,11 +305,12 @@ class Cursor(object):
         obj = 'obj'
 
         tmpl = """FOR {obj} IN {collection} {filter} RETURN {obj}""".format
-        tmpl_bind = partial('{obj}.{0} == @{0}'.format, obj=obj)
+        tmpl_bind = partial('{obj}.`{0}` == @param_{0}'.format, obj=obj)
 
         filter_str = ''
 
         if kwargs:
+
             filter_str = ' '.join(
                 (
                     'FILTER',
@@ -318,7 +319,8 @@ class Cursor(object):
                 )
             )
 
-        return cls(tmpl(collection=collection, filter=filter_str, obj=obj), bind=kwargs)
+        return cls(tmpl(collection=collection, filter=filter_str, obj=obj),
+                   bind={'param_{}'.format(k): v for k, v in kwargs.iteritems()})
 
     def iter_result(self):
         """Iterate over all batches of result."""
