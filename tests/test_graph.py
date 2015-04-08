@@ -51,7 +51,7 @@ def test_graph():
     class G111(G11):
         pass
 
-    G1.create_graph()
+    G1._create_graph()
 
     assert G1.__graph_name__ == 'G1'
     assert G11.__graph_name__ == 'G1'

@@ -30,7 +30,7 @@ class PyTest(TestCommand):
 
 setup(
     name="arangodb",
-    version="0.0.2",
+    version="0.0.3",
 
     package_dir={'': 'src'},
     namespace_packages=['arangodb'],

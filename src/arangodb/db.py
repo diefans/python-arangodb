@@ -1,6 +1,6 @@
 """Some classes to easy work with arangodb."""
 
-from functools import partial
+from functools import partial, wraps
 from itertools import starmap
 
 from collections import OrderedDict
@@ -20,50 +20,30 @@ class MetaBase(type):
     Provides also an api property mapping to the specific arango server url.
     """
 
-    # just to identify the root of all roots
-    __base__ = None
-
-    # a collection of all classes we will deal with
-    __classes__ = OrderedDict()
-
     # global client factory
     __client_factory__ = None
 
-    # the collection name may deviate from class name
-    __collection_name__ = None
-
-    def __new__(mcs, name, bases, dct):
-
-        # we set our collection name to class name if not already done
-        if '__collection_name__' not in dct:
-            dct['__collection_name__'] = name
-
-        cls = type.__new__(mcs, name, bases, dct)
-
-        mcs._register_class(cls)
-
-        return cls
-
     @classmethod
-    def _register_class(mcs, cls):
-        if mcs.__base__ is None:
-            mcs.__base__ = cls
+    def _set_global_client_factory(mcs, factory):
+        """Set the global client factory."""
 
-        else:
-            mcs.__classes__[cls.__collection_name__] = cls
+        # we take the method wrapper here
+        mcs.__client_factory__ = factory.__get__
 
-    @classmethod
-    def set_client_factory(mcs, factory):
-        """Set the client factory."""
+    def _set_client_factory(cls, factory):
+        """Set the local client factory.
+        This will only be available to subclasses of this class.
+        """
 
-        mcs.__client_factory__ = factory
+        # we take the method wrapper here
+        cls.__client_factory__ = factory.__get__
 
     @property
     def client(cls):
         """Resolves the client for this class."""
 
         if callable(cls.__client_factory__):
-            return cls.__client_factory__()
+            return cls.__client_factory__(cls)()
 
         # just the default
         return api.SystemClient()
@@ -71,21 +51,6 @@ class MetaBase(type):
     @property
     def api(cls):
         raise NotImplementedError("There is no api implemented for the general meta class!")
-
-    def __polymorph__(cls, dct):
-        """Just create a proper instance for this dct."""
-
-        # dct must have an _id to infer collection
-        if '_id' not in dct or '/' not in dct['_id']:
-            raise TypeError("Cannot infer document type!", dct)
-
-        collection, _ = dct['_id'].split('/')
-
-        # lookup type
-        if collection not in cls.__classes__:
-            raise TypeError("Unknown document type!", collection)
-
-        return cls.__classes__[collection](dct)
 
 
 class MetaDocumentBase(MetaBase):
@@ -95,37 +60,40 @@ class MetaDocumentBase(MetaBase):
     Edges are also documents, but a little bit special...
     """
 
-    documents = {}
-    document_base = None
+    # the collection name may deviate from class name
+    __collection_name__ = None
 
-    objective = None
+    __document_base__ = None
+    __documents__ = OrderedDict()
+
+    def __init__(cls, name, bases, dct):
+        super(MetaDocumentBase, cls).__init__(name, bases, dct)
+
+        # stores an optional de/serializer
+        cls.__objective__ = None
+
+    def __new__(mcs, name, bases, dct):
+
+        # we set our collection name to class name if not already done
+        if '__collection_name__' not in dct:
+            dct['__collection_name__'] = name
+
+        cls = type.__new__(mcs, name, bases, dct)
+
+        # register our base class or a document class
+        mcs._register_class(cls)
+
+        return cls
 
     @classmethod
     def _register_class(mcs, cls):
-        if mcs.document_base is None:
-            mcs.document_base = cls
+        if mcs.__document_base__ is None:
+            mcs.__document_base__ = cls
 
         else:
-            MetaBase._register_class(cls)
-            mcs.documents[cls.__collection_name__] = cls
+            mcs.__documents__[cls.__collection_name__] = cls
 
-    @property
-    def api(cls):
-        return cls.client.documents
-
-    def deserialize(cls, doc):
-        if cls.objective is not None:
-            return cls.objective.deserialize(doc)
-
-        return doc
-
-    def serialize(cls, doc):
-        if cls.objective is not None:
-            return cls.objective.serialize(doc)
-
-        return doc
-
-    def create_collection(cls):
+    def _create_collection(cls):
         """Try to create a collection."""
 
         col_type = api.DOCUMENT_COLLECTION if issubclass(cls, Document) else api.EDGE_COLLECTION
@@ -144,22 +112,55 @@ class MetaDocumentBase(MetaBase):
 
         LOG.info("Collection in use: %s", cls)
 
+    def _polymorph(cls, dct):
+        """Just create a proper instance for this dct."""
+
+        # dct must have an _id to infer collection
+        if '_id' not in dct or '/' not in dct['_id']:
+            raise TypeError("Cannot infer document type!", dct)
+
+        collection, _ = dct['_id'].split('/')
+
+        # lookup type
+        if collection not in cls.__documents__:
+            raise TypeError("Unknown document type!", collection)
+
+        return cls.__documents__[collection](dct)
+
+    @property
+    def api(cls):
+        return cls.client.documents
+
+
+def polymorph(wrapped):
+    """Decorate a function which returns a raw ArangoDB document to create a document class instance."""
+
+    @wraps(wrapped)
+    def decorator(*args, **kwargs):
+        doc = wrapped(*args, **kwargs)
+
+        return BaseDocument._polymorph(doc)         # pylint: disable=W0212
+
+    return decorator
+
 
 class MetaEdgeBase(MetaDocumentBase):
 
     """The edge type."""
 
-    edges = {}
-    edge_base = None
+    __edge_base__ = None
+    __edges__ = OrderedDict()
 
     @classmethod
     def _register_class(mcs, cls):
-        if mcs.edge_base is None:
-            mcs.edge_base = cls
+        """Register edge base and classes."""
+
+        if mcs.__edge_base__ is None:
+            mcs.__edge_base__ = cls
 
         else:
-            MetaDocumentBase._register_class(cls)
-            mcs.edges[cls.__collection_name__] = cls
+            super(MetaEdgeBase, mcs)._register_class(cls)
+            mcs.__edges__[cls.__collection_name__] = cls
 
     @property
     def api(cls):
@@ -170,27 +171,7 @@ class BaseDocument(dict):
 
     """Is an object, which is able to connect to a session."""
 
-    __metaclass__ = MetaBase
-
-    @classmethod
-    def load(cls, key):
-        """Just create a fresh instance by requesting the document by key."""
-
-        if '/' in key:
-            name, key = key.split('/')
-
-        else:
-            name = cls.__collection_name__
-
-        raw_doc = cls.api.get(name, key)
-        doc = cls.deserialize(raw_doc)
-
-        # lookup of document collection to identify proper class
-        return cls.__polymorph__(doc)
-
-    @classmethod
-    def find(cls, **kwargs):
-        return Cursor.find(cls, **kwargs).iter_documents()
+    __metaclass__ = MetaDocumentBase
 
     @classmethod
     def _iter_all(cls):
@@ -201,25 +182,61 @@ class BaseDocument(dict):
         for _id in cls.api.get(cls.__collection_name__)['documents']:
             yield cls.load(_id)
 
-    def _create(self):
-        """Create a db instance."""
+    @classmethod
+    def _create(cls, doc):
+        """Create a db instance on the server."""
 
-        doc = self.__class__.serialize(self)
+        return cls.api.create(cls.__collection_name__, doc)
 
-        return self.__class__.api.create(self.__class__.__collection_name__, doc)
+    @classmethod
+    def deserialize(cls, doc):
+        """Take the deserializer to validate the document."""
+
+        if cls.__objective__ is not None:
+            return cls.__objective__.deserialize(doc)
+
+        return doc
+
+    def serialize(self):
+        """Take the serializer to adjust the document."""
+
+        if self.__objective__ is not None:
+            return self.__objective__.serialize(self)
+
+        return self
+
+    @classmethod
+    @polymorph
+    def load(cls, key):
+        """Just create a fresh instance by requesting the document by key."""
+
+        if '/' in key:
+            name, key = key.split('/')
+
+        else:
+            name = cls.__collection_name__
+
+        doc = cls.api.get(name, key)
+
+        return cls.deserialize(doc)
+
+    @classmethod
+    def find(cls, **kwargs):
+        return Cursor.find(cls, **kwargs).iter_documents()
 
     def save(self):
         """Save the document to db or update."""
 
+        serialized = self.serialize()
+
         # test for existing key
         if '_id' in self:
             # replace
-            ser_doc = self.__class__.serialize(self)
-            doc = self.__class__.api.replace(ser_doc, self['_id'])
+            doc = self.__class__.api.replace(serialized, self['_id'])
 
         else:
             # create
-            doc = self._create()
+            doc = self._create(serialized)
 
         # update self
         for k in ('_id', '_key', '_rev'):
@@ -239,17 +256,17 @@ class BaseDocument(dict):
         )
 
 
+EDGE_DIRECTION_ANY = 'any'
+EDGE_DIRECTION_INBOUND = 'inbound'
+EDGE_DIRECTION_OUTBOUND = 'outbound'
+
+
 class Edge(BaseDocument):
 
     """An edge between two documents.
 
     When the edge is loaded the two dowuments are also loaded.
     """
-
-    class Direction:
-        any = 'any'
-        inbound = 'inbound'
-        outbound = 'outbound'
 
     __metaclass__ = MetaEdgeBase
 
@@ -279,6 +296,21 @@ class Edge(BaseDocument):
         super(Edge, self).__init__(*args, **kwargs)
 
     @classmethod
+    def _create(cls, doc):
+        """Create a db instance."""
+
+        if '_from' not in doc or '_to' not in doc:
+            # _from and _to must have been set now
+            raise TypeError("You must create an edge ether by calling __init__ "
+                            "with _from and _to args or an appropriate dict!")
+
+        return cls.api.create(
+            cls.__collection_name__,
+            doc['_from'],
+            doc['_to'],
+            doc)
+
+    @classmethod
     def load(cls, key):
         """Load the edge and connected documents."""
 
@@ -289,22 +321,8 @@ class Edge(BaseDocument):
 
         return edge
 
-    def _create(self):
-        """Create a db instance."""
-
-        if '_from' not in self or '_to' not in self:
-            # _from and _to must have been set now
-            raise TypeError("You must create an edge ether by calling __init__ "
-                            "with _from and _to args or an appropriate dict!")
-
-        return self.__class__.api.create(
-            self.__class__.__collection_name__,
-            self['_from'],
-            self['_to'],
-            self)
-
     @classmethod
-    def connections(cls, document, direction=None):
+    def connections(cls, document, direction=EDGE_DIRECTION_ANY):
         query = """
             FOR p IN PATHS(@@doc, @@edge, @direction)
                 FILTER p.source._id == @doc_id && LENGTH(p.edges) == 1
@@ -315,7 +333,7 @@ class Edge(BaseDocument):
 
             "@doc": document.__class__.__collection_name__,
             "@edge": cls.__collection_name__,
-            "direction": direction or Edge.Direction.any,
+            "direction": direction,
             "doc_id": document['_id']
         }
 
@@ -410,4 +428,4 @@ class Cursor(object):
         """If you expect document instances to be returned from the cursor, call this to instantiate them."""
 
         for doc in self.iter_result():
-            yield self.__class__.__polymorph__(doc)
+            yield BaseDocument._polymorph(doc)

@@ -182,13 +182,13 @@ class MetaGraph(db.MetaBase):
     def api(cls):
         return cls.client.graphs
 
-    def create_graph(cls):
+    def _create_graph(cls):
         # first create all graph collections
         for edge in chain(
                 cls.__graph_edges__.itervalues(),
                 cls.__graph_vertices__.itervalues()
         ):
-            edge.create_collection()
+            edge._create_collection()
 
         # check for existing graph
         try:
