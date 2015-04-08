@@ -5,6 +5,9 @@ from functools import wraps, partial
 from itertools import imap, chain
 
 import requests
+import logging
+
+LOG = logging.getLogger(__name__)
 
 from . import exc
 
@@ -29,7 +32,14 @@ def json_result():
                     num = json_content.get('errorNum')
                     message = json_content.get('errorMessage')
 
-                    raise exc.ApiError(code=code, num=num, message=message)
+                    raise exc.ApiError(
+                        code=code,
+                        num=num,
+                        message=message,
+                        func=func,
+                        args=args,
+                        kwargs=kwargs,
+                    )
 
                 # no error
                 return json_content
@@ -99,6 +109,13 @@ class Client(object):
             prefix = ('_db', database, '_api')
 
         return ApiProxy(self, *chain(prefix, path), **kwargs)
+
+    def create_database(self):
+        """Just create the actual database if not exists."""
+
+        system_client = SystemClient(endpoint=self.endpoint, session=self.session)
+        if self.database not in system_client.databases.databases:
+            system_client.databases.create(self.database)
 
 
 class SystemClient(Client):
@@ -255,12 +272,12 @@ class Graphs(Api):
         result = self.api.get(*name)
 
         if name:
-            return result['graphs']
+            return result['graph']
 
-        return result
+        return result['graphs']
 
-    def create(self, name):
-        return self.api.post(name)
+    def create(self, definition):
+        return self.api.post(json=definition)
 
     def drop(self, name):
         return self.api.delete(name)

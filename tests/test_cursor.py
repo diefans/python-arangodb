@@ -9,6 +9,7 @@ def test_find():
 
     col = "User"
 
+    # we use ordered dict to know the filter order in advance
     query = OrderedDict()
     query["foo"] = 123
     query["bar"] = "baz"
@@ -19,6 +20,9 @@ def test_find():
         Cursor.find(col, **query)
 
         cursor_mock.assert_called_with(
-            "FOR obj IN User FILTER obj.bar == @bar AND obj.foo == @foo RETURN obj",
-            bind=query
+            "FOR obj IN User FILTER obj.`bar` == @param_bar AND obj.`foo` == @param_foo RETURN obj",
+            bind={
+                'param_foo': 123,
+                'param_bar': "baz"
+            }
         )

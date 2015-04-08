@@ -36,13 +36,13 @@ class MetaApiError(type):
 
         return cls
 
-    def __call__(cls, code, num, message):
+    def __call__(cls, code, num, message, *args, **kwargs):
         # polymorphic part
         # lookup exception type
         if num in cls.classes:
             cls = cls.classes[num]
 
-        return type.__call__(cls, code, num, message)
+        return type.__call__(cls, code, num, message, *args, **kwargs)
 
 
 class ApiError(ArangoException):
@@ -52,10 +52,14 @@ class ApiError(ArangoException):
 
     error_num = None
 
-    def __init__(self, code, num, message):
+    def __init__(self, code, num, message, func=None, args=None, kwargs=None):
         self.code = code
         self.num = num
         self.message = message
+
+        self.func = func
+        self.args = args
+        self.kwargs = kwargs
 
         super(ApiError, self).__init__(code, num, message)
 
@@ -76,3 +80,15 @@ class DatabaseNotFound(ApiError):
 
 class UniqueConstraintViolated(ApiError):
     error_num = 1210
+
+
+class GraphError(ApiError):
+    pass
+
+
+class EdgeCollectionAlreadyUsed(GraphError):
+    error_num = 1921
+
+
+class GraphNotFound(GraphError):
+    error_num = 1924
