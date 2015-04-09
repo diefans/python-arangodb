@@ -188,7 +188,7 @@ class MetaGraph(db.MetaBase):
                 cls.__graph_edges__.itervalues(),
                 cls.__graph_vertices__.itervalues()
         ):
-            edge._create_collection()
+            edge._create_collection()       # pylint: disable=W0212
 
         # check for existing graph
         try:

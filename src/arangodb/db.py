@@ -90,6 +90,15 @@ class MetaDocumentBase(MetaBase):
         if mcs.__document_base__ is None:
             mcs.__document_base__ = cls
 
+        elif cls.__collection_name__ in mcs.__documents__:
+            raise TypeError(
+                "A collection with the same name `{0}`"
+                " is already registered by {1}".format(
+                    cls.__collection_name__,
+                    mcs.__documents__[cls.__collection_name__]
+                )
+            )
+
         else:
             mcs.__documents__[cls.__collection_name__] = cls
 
@@ -195,7 +204,7 @@ class BaseDocument(dict):
         if cls.__objective__ is not None:
             return cls.__objective__.deserialize(doc)
 
-        return doc
+        return doc.copy()
 
     def serialize(self):
         """Take the serializer to adjust the document."""
@@ -203,7 +212,7 @@ class BaseDocument(dict):
         if self.__objective__ is not None:
             return self.__objective__.serialize(self)
 
-        return self
+        return self.copy()
 
     @classmethod
     @polymorph
@@ -295,6 +304,20 @@ class Edge(BaseDocument):
 
         super(Edge, self).__init__(*args, **kwargs)
 
+    def __setitem__(self, key, value):
+        if key in ('_from', '_to') and isinstance(value, BaseDocument):
+            # check for documents and reduce to _id
+            if '_id' not in value:
+                raise TypeError(
+                    "The document for setting `{0}` has no `_id`: {1}"
+                    .format(key, value)
+                )
+
+            super(Edge, self).__setitem__(key, value['_id'])
+
+        else:
+            super(Edge, self).__setitem__(key, value)
+
     @classmethod
     def _create(cls, doc):
         """Create a db instance."""
@@ -323,6 +346,8 @@ class Edge(BaseDocument):
 
     @classmethod
     def connections(cls, document, direction=EDGE_DIRECTION_ANY):
+        assert isinstance(document, BaseDocument), "document is Document or Edge"
+
         query = """
             FOR p IN PATHS(@@doc, @@edge, @direction)
                 FILTER p.source._id == @doc_id && LENGTH(p.edges) == 1
@@ -341,11 +366,11 @@ class Edge(BaseDocument):
 
     @classmethod
     def inbounds(cls, document):
-        return cls.connections(document, direction=Edge.Direction.inbound)
+        return cls.connections(document, direction=EDGE_DIRECTION_INBOUND)
 
     @classmethod
     def outbounds(cls, document):
-        return cls.connections(document, direction=Edge.Direction.outbound)
+        return cls.connections(document, direction=EDGE_DIRECTION_OUTBOUND)
 
 
 class Document(BaseDocument):

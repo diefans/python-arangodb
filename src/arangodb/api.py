@@ -110,13 +110,6 @@ class Client(object):
 
         return ApiProxy(self, *chain(prefix, path), **kwargs)
 
-    def create_database(self):
-        """Just create the actual database if not exists."""
-
-        system_client = SystemClient(endpoint=self.endpoint, session=self.session)
-        if self.database not in system_client.databases.databases:
-            system_client.databases.create(self.database)
-
 
 class SystemClient(Client):
 
@@ -127,6 +120,12 @@ class SystemClient(Client):
 
         # database api is only allowed for system database
         self.databases = Databases(self.api(None, 'database'))
+
+    def create_database(self, database):
+        """Just create the actual database if not exists."""
+
+        if database not in self.databases.databases:
+            self.databases.create(database)
 
 
 class ApiProxy(object):

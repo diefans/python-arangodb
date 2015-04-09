@@ -61,7 +61,7 @@ class ApiError(ArangoException):
         self.args = args
         self.kwargs = kwargs
 
-        super(ApiError, self).__init__(code, num, message)
+        super(ApiError, self).__init__(code, num, message, func, args, kwargs)
 
 
 # basically an implementation of https://docs.arangodb.com/ErrorCodes/README.html
