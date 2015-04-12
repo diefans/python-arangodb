@@ -9,7 +9,7 @@ def test_iter_expr():
 def test_for_expr():
     from arangodb import query
 
-    q = query.ForExpression(query.Alias("foo"), query.Collection("bar"))
+    q = query.For(query.Alias("foo"), query.Collection("bar"))
 
     assert list(q) == [
         (query.FOR),
@@ -19,31 +19,31 @@ def test_for_expr():
     ]
 
 
-def test_join():
+def test_query():
     from arangodb import query
 
     alias = query.Alias("foo")
     q = query.Query(alias, query.Collection("bar"), query.Return(alias))
 
-    query, params = q.join()
+    query, params = q.query()
 
-    assert query == "FOR foo IN @@collection_0 RETURN foo"
+    assert query == "FOR foo IN @@c_0 RETURN foo"
     assert params == {
-        "@collection_0": "bar",
+        "@c_0": "bar",
     }
 
 
-def test_join_alias_attr():
+def test_query_alias_attr():
     from arangodb import query
 
     alias = query.Alias("foo")
     q = query.Query(alias, query.Collection("bar"), query.Return(alias.bar))
 
-    query, params = q.join()
+    query, params = q.query()
 
-    assert query == "FOR foo IN @@collection_0 RETURN foo.`bar`"
+    assert query == "FOR foo IN @@c_0 RETURN foo.`bar`"
     assert params == {
-        "@collection_0": "bar",
+        "@c_0": "bar",
     }
 
 
@@ -73,9 +73,14 @@ def test_filter():
 
     q = query.Filter(1, 2, 3)
 
-    query, params = q.join()
+    query, params = q.query()
 
-    assert query == "FILTER 1 AND 2 AND 3"
+    assert query == "FILTER @value_0 AND @value_1 AND @value_2"
+    assert params == {
+        "value_0": 1,
+        "value_1": 2,
+        "value_2": 3,
+    }
 
 
 def test_filter_and():
@@ -90,24 +95,26 @@ def test_filter_and():
         query.Filter(alias == "1", alias2 <= 1)
     )
 
-    query, params = q.join()
+    query, params = q.query()
 
-    assert query == 'FOR foo IN @@collection_0 FILTER foo == "1" AND bar <= 1 RETURN foo.`bar`'
+    assert query == 'FOR foo IN @@c_0 FILTER foo == @value_0 AND bar <= @value_1 RETURN foo.`bar`'
     assert params == {
-        "@collection_0": "bar",
+        "@c_0": "bar",
+        "value_0": "1",
+        "value_1": 1
     }
 
 
 def test_list():
     from arangodb import query
 
-    q = query.ListExpression([1, 2, 3])
+    q = query.Chain([1, 2, 3])
 
-    query, params = q.join()
+    query, params = q.query()
 
-    # TODO at the moment every expression is separated with space ' '
     # so we have some artifacts ...?
-    assert query == "1 ,  2 ,  3"
+    assert query == "@value_0 @value_1 @value_2"
+    assert params == {'value_0': 1, 'value_1': 2, 'value_2': 3}
 
 
 def test_operator():
@@ -115,9 +122,10 @@ def test_operator():
 
     q = query.Operator(query.Alias("foo"), query.Alias("bar"))
 
-    query, params = q.join()
+    query, params = q.query()
 
     assert query == "foo == bar"
+    assert params == {}
 
 
 def test_fast_query():
@@ -125,14 +133,30 @@ def test_fast_query():
 
     alias = query.Alias("foo")
     alias2 = query.Alias("bar")
-    q = query.Query(alias)\
-        .from_list(query.Collection("bar"))\
+    q = query.Query(alias, query.Collection("bar"))\
         .filter(alias == "1", alias2 <= 1)\
         .result(alias.bar)
 
-    query, params = q.join()
+    query, params = q.query()
 
-    assert query == 'FOR foo IN @@collection_0 FILTER foo == "1" AND bar <= 1 RETURN foo.`bar`'
+    assert query == 'FOR foo IN @@c_0 FILTER foo == @value_0 AND bar <= @value_1 RETURN foo.`bar`'
     assert params == {
-        "@collection_0": "bar",
+        "@c_0": "bar",
+        "value_0": "1",
+        "value_1": 1
+    }
+
+
+def test_function():
+    from arangodb import query
+
+    alias = query.Alias("foo")
+
+    q = query.PATHS(alias, 1)
+
+    query, params = q.query()
+
+    assert query == "PATHS( foo , @value_0 )"
+    assert params == {
+        "value_0": 1
     }

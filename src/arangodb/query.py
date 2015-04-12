@@ -4,15 +4,12 @@ See https://docs.arangodb.com/Aql/Basics.html for details
 
 """
 
-import inspect
 from functools import wraps
-from itertools import izip, izip_longest, chain, repeat
+from itertools import izip
 
-import ujson
+from collections import defaultdict
 
-from collections import defaultdict, OrderedDict
-
-from . import api
+from . import util, cursor
 
 
 class Expression(object):
@@ -55,32 +52,46 @@ class Expression(object):
 
             return types.index(expr)
 
-        terms, params = [], []
-
         for expr in self:
             index = register_expr(expr)
 
-            yield expr._get_term(index), expr._get_params(index)
+            yield expr._get_term(index), expr._get_params(index)            # pylint: disable=w0212
 
-    def join(self):
+    def query(self):
+        """Create a query with its bind params assembled."""
 
         terms, binds = izip(*list(self.assemble()))
 
-        # TODO take care that no param has an ambigous meaning
         joined_params = {}
-        for i, params in enumerate(binds):
+        for params in binds:
             joined_params.update(params)
 
         return ' '.join(terms), joined_params
 
 
+class Param(object):
+    def __init__(self, name):
+        self.name = name
+
+    def __call__(self, index, declare=True):
+        return "{declare}{name}_{index}"\
+            .format(declare=declare and "@" or "", name=self.name, index=index)
+
+
 class Value(Expression):
+    param = Param('value')
+
     def __init__(self, value):
         super(Value, self).__init__()
         self.value = value
 
     def _get_term(self, index):
-        return ujson.dumps(self.value)
+        return self.param(index)
+
+    def _get_params(self, index):
+        return {
+            self.param(index, False): self.value
+        }
 
     @classmethod
     def iter_fixed(cls, sequence):
@@ -119,7 +130,6 @@ class Term(Expression):
 
     def _get_term(self, index):
         return self.term
-
 
 
 class KeyWord(Term):
@@ -186,10 +196,12 @@ class AliasAttr(Alias):
         self.parent = parent
 
     def _get_term(self, index):
-        parent_term = self.parent._get_term(index)
+        parent_term = self.parent._get_term(index)          # pylint: disable=W0212
 
         return "{}.`{}`".format(parent_term, self.name)
 
+
+# pylint: disable=W0223
 
 class Chain(Expression):
     sep = None
@@ -212,11 +224,11 @@ class Chain(Expression):
                 yield self.sep
 
 
-class ListExpression(Chain):
-    sep = Term(', ')
+class List(Chain):
+    sep = Term(',')
 
 
-class And(ListExpression):
+class And(List):
     sep = AND
 
     def __init__(self, *exprs):
@@ -230,6 +242,159 @@ class Filter(And):
 
         for expr in super(Filter, self).__iter__():
             yield expr
+
+
+class Function(List):
+
+    def __init__(self, *exprs):
+        super(Function, self).__init__(exprs)
+
+    def __iter__(self):
+        yield Term(self.name + "(")
+
+        for expr in super(Function, self).__iter__():
+            yield expr
+
+        yield Term(")")
+
+    @util.classproperty
+    def name(cls):          # pylint: disable=E0213
+        return cls.__name__
+
+
+# See https://docs.arangodb.com/Aql/Functions.html
+# pylama:ignore=E302,E701,C0321
+# TYPES
+class TO_BOOL(Function): pass
+class TO_NUMBER(Function): pass
+class TO_STRING(Function): pass
+class TO_ARRAY(Function): pass
+class TO_LIST(Function): pass
+class IS_NULL(Function): pass
+class IS_BOOL(Function): pass
+class IS_NUMBER(Function): pass
+class IS_STRING(Function): pass
+class IS_ARRAY(Function): pass
+class IS_LIST(Function): pass
+class IS_OBJECT(Function): pass
+class IS_DOCUMENT(Function): pass
+
+# STRING
+class CONCAT(Function): pass
+class CONCAT_SEPARATOR(Function): pass
+class CHAR_LENGTH(Function): pass
+class LOWER(Function): pass
+class UPPER(Function): pass
+class SUBSTITUTE(Function): pass
+class SUBSTRING(Function): pass
+class LEFT(Function): pass
+class RIGHT(Function): pass
+class TRIM(Function): pass
+class LTRIM(Function): pass
+class RTRIM(Function): pass
+class SPLIT(Function): pass
+class REVERSE(Function): pass
+class CONTAINS(Function): pass
+class FIND_FIRST(Function): pass
+class fIND_LAST(Function): pass
+class LIKE(Function): pass
+class MD5(Function): pass
+class SHA1(Function): pass
+class RANDOM_TOKEN(Function): pass
+
+# NUMERIC
+class FLOOR(Function): pass
+class CEIL(Function): pass
+class ROUND(Function): pass
+class ABS(Function): pass
+class SQRT(Function): pass
+class RAND(Function): pass
+
+# DATE
+class DATE_TIMESTAMP(Function): pass
+class DATE_ISO8601(Function): pass
+class DATE_DAYOFWEEK(Function): pass
+class DATE_YEAR(Function): pass
+class DATE_MONTH(Function): pass
+class DATE_DAY(Function): pass
+class DATE_HOUR(Function): pass
+class DATE_MINUTE(Function): pass
+class DATE_SECOND(Function): pass
+class DATE_MILLISECOND(Function): pass
+class DATE_NOW(Function): pass
+
+# ARRAY
+class LENGTH(Function): pass
+class FLATTEN(Function): pass
+class MIN(Function): pass
+class MAX(Function): pass
+class AVERAGE(Function): pass
+class SUM(Function): pass
+class MEDIAN(Function): pass
+class PERCENTILE(Function): pass
+class VARIANCE_POPULATION(Function): pass
+class STDDEV_POPULATION(Function): pass
+class SDTDEV_SAMPLE(Function): pass
+# class REVERSE(Function): pass
+class FIRST(Function): pass
+class LAST(Function): pass
+class NTH(Function): pass
+class POSITION(Function): pass
+class SLICE(Function): pass
+class UNIQUE(Function): pass
+class UNION(Function): pass
+class UNION_DISTINCT(Function): pass
+class MINUS(Function): pass
+class INTERSECTION(Function): pass
+class APPEND(Function): pass
+class PUSH(Function): pass
+class UNSHIFT(Function): pass
+class POP(Function): pass
+class SHIFT(Function): pass
+class REMOVE_VALUE(Function): pass
+class REMOVE_VALUES(Function): pass
+class REMOVE_NTH(Function): pass
+
+# OBJECT/DOCUMENT
+class MATCHES(Function): pass
+class MERGE(Function): pass
+class MERGE_RECURSIVE(Function): pass
+class TRANSLATE(Function): pass
+class HAS(Function): pass
+class ATTRIBUTES(Function): pass
+class VALUES(Function): pass
+class ZIP(Function): pass
+class UNSET(Function): pass
+class KEEP(Function): pass
+class PARSE_IDENTIFIER(Function): pass
+
+# GEO
+class NEAR(Function): pass
+class WITHIN(Function): pass
+class WITHIN_RECTANGLE(Function): pass
+class IS_IN_POLYGON(Function): pass
+
+# FULLTEXT
+class FULLTEXT(Function): pass
+
+# GRAPH
+class EDGES(Function): pass
+class NEIGHBORS(Function): pass
+class TRAVERSAL(Function): pass
+class TRAVERSAL_TREE(Function): pass
+class SHORTEST_PATH(Function): pass
+class PATHS(Function): pass
+
+# MISC
+class NOT_NULL(Function): pass
+class FIRST_LIST(Function): pass
+class FIRST_DOCUMENT(Function): pass
+class COLLECTIONS(Function): pass
+class CURRENT_USER(Function): pass
+class DOCUMENT(Function): pass
+class SKIPLIST(Function): pass
+class CALL(Function): pass
+class APPLY(Function): pass
 
 
 _EQ = Term("==")
@@ -290,24 +455,25 @@ class Return(Expression):
 
 
 class Collection(Expression):
+    param = Param('@c')
+
     def __init__(self, collection):
         super(Collection, self).__init__()
 
-        if inspect.isclass(collection) and issubclass(collection, api.BaseDocument):
-            self.collection = collection.__collection_name__
+        self.collection = getattr(collection, "__collection_name__", collection)
 
-        else:
-            self.collection = collection
-
-        self.params["@collection"] = self.collection
+    def _get_params(self, index):
+        return {
+            self.param(index, False): self.collection
+        }
 
     def _get_term(self, index):
-        return "@@collection_{}".format(index)
+        return self.param(index)
 
 
-class ForExpression(Expression):
+class For(Expression):
     def __init__(self, alias, from_list):
-        super(ForExpression, self).__init__()
+        super(For, self).__init__()
 
         self.alias_expr = alias
         self.list_expr = from_list
@@ -334,19 +500,38 @@ class ForExpression(Expression):
         return self
 
 
-class Query(ForExpression):
+class Query(Expression):
 
     """A query will join into an arango query plus bind params."""
 
-    def __init__(self, alias=None, from_list=None, action=None, filter=None):
-        super(Query, self).__init__(alias, from_list)
+    def __init__(self, alias, from_list, action=None, filter=None):         # pylint: disable=W0622
+        super(Query, self).__init__()
+
+        self.for_exprs = [For(alias, from_list)]
 
         self.action_expr = action
 
         self.filter_expr = filter
 
+    def __iter__(self):
+        for for_expr in self.for_exprs:
+            for expr in for_expr:
+                yield expr
+
+        if self.filter_expr is not None:
+            for expr in self.filter_expr:
+                yield expr
+
+        for expr in self.action_expr:
+            yield expr
+
     def filter(self, *filters):
         self.filter_expr = Filter(*filters)
+
+        return self
+
+    def join(self, alias, from_list):
+        self.for_exprs.append(For(alias, from_list))
 
         return self
 
@@ -355,13 +540,6 @@ class Query(ForExpression):
 
         return self
 
-    def __iter__(self):
-        for expr in super(Query, self).__iter__():
-            yield expr
-
-        if self.filter_expr is not None:
-            for expr in self.filter_expr:
-                yield expr
-
-        for expr in self.action_expr:
-            yield expr
+    @property
+    def cursor(self):
+        return cursor.Cursor(*self.query())
