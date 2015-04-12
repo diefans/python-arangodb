@@ -82,7 +82,7 @@ class GraphEdge(GraphBase):
     __metaclass__ = MetaGraphEdge
 
 
-class MetaGraphVertex(db.MetaDocumentBase):
+class MetaGraphVertex(api.MetaDocumentBase):
     __graph_vertex_base__ = None
     __graph_vertices__ = {}
 
@@ -112,7 +112,7 @@ class GraphVertex(GraphBase):
     __metaclass__ = MetaGraphVertex
 
 
-class MetaGraph(db.MetaBase):
+class MetaGraph(api.MetaBase):
     __graph_base__ = None
     __graphs__ = {}
 
