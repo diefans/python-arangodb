@@ -23,7 +23,7 @@ def test_join():
     from arangodb import query
 
     alias = query.Alias("foo")
-    q = query.Query(alias, query.Collection("bar"), query.ReturnExpression(alias))
+    q = query.Query(alias, query.Collection("bar"), query.Return(alias))
 
     query, params = q.join()
 
@@ -37,7 +37,7 @@ def test_join_alias_attr():
     from arangodb import query
 
     alias = query.Alias("foo")
-    q = query.Query(alias, query.Collection("bar"), query.ReturnExpression(alias.bar))
+    q = query.Query(alias, query.Collection("bar"), query.Return(alias.bar))
 
     query, params = q.join()
 
@@ -86,7 +86,7 @@ def test_filter_and():
     q = query.Query(
         alias,
         query.Collection("bar"),
-        query.ReturnExpression(alias.bar),
+        query.Return(alias.bar),
         query.Filter(alias == "1", alias2 <= 1)
     )
 
@@ -118,3 +118,21 @@ def test_operator():
     query, params = q.join()
 
     assert query == "foo == bar"
+
+
+def test_fast_query():
+    from arangodb import query
+
+    alias = query.Alias("foo")
+    alias2 = query.Alias("bar")
+    q = query.Query(alias)\
+        .from_list(query.Collection("bar"))\
+        .filter(alias == "1", alias2 <= 1)\
+        .result(alias.bar)
+
+    query, params = q.join()
+
+    assert query == 'FOR foo IN @@collection_0 FILTER foo == "1" AND bar <= 1 RETURN foo.`bar`'
+    assert params == {
+        "@collection_0": "bar",
+    }

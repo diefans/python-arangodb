@@ -276,8 +276,10 @@ class Operator(Expression):
             yield expr
 
 
-class ReturnExpression(Expression):
+class Return(Expression):
     def __init__(self, alias_or_object):
+        super(Return, self).__init__()
+
         self.alias = alias_or_object
 
     def __iter__(self):
@@ -304,16 +306,16 @@ class Collection(Expression):
 
 
 class ForExpression(Expression):
-    def __init__(self, alias, list_expr):
+    def __init__(self, alias, from_list):
         super(ForExpression, self).__init__()
 
-        self.alias = alias
-        self.list_expr = list_expr
+        self.alias_expr = alias
+        self.list_expr = from_list
 
     def __iter__(self):
         yield FOR
 
-        for expr in self.alias:
+        for expr in self.alias_expr:
             yield expr
 
         yield IN
@@ -321,20 +323,37 @@ class ForExpression(Expression):
         for expr in self.list_expr:
             yield expr
 
+    def alias(self, alias):
+        self.alias_expr = alias
+
+        return self
+
+    def from_list(self, from_list):
+        self.list_expr = from_list
+
+        return self
+
 
 class Query(ForExpression):
 
     """A query will join into an arango query plus bind params."""
 
-    def __init__(self, alias, list_expr, retr_expr, filter_expr=None):
-        super(Query, self).__init__(alias, list_expr)
+    def __init__(self, alias=None, from_list=None, action=None, filter=None):
+        super(Query, self).__init__(alias, from_list)
 
-        self.retr_expr = retr_expr
+        self.action_expr = action
 
-        self.filter_expr = filter_expr
+        self.filter_expr = filter
 
-    def collection(self, collection):
-        self._collection = collection
+    def filter(self, *filters):
+        self.filter_expr = Filter(*filters)
+
+        return self
+
+    def result(self, action):
+        self.action_expr = Return(action)
+
+        return self
 
     def __iter__(self):
         for expr in super(Query, self).__iter__():
@@ -344,7 +363,5 @@ class Query(ForExpression):
             for expr in self.filter_expr:
                 yield expr
 
-        for expr in self.retr_expr:
+        for expr in self.action_expr:
             yield expr
-
-
