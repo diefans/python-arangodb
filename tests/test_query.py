@@ -22,7 +22,8 @@ def test_for_expr():
 def test_join():
     from arangodb import query
 
-    q = query.ForExpression(query.Alias("foo"), query.Collection("bar"))
+    alias = query.Alias("foo")
+    q = query.Query(alias, query.Collection("bar"), query.ReturnExpression(alias))
 
     query, params = q.join()
 
