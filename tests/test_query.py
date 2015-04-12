@@ -27,7 +27,7 @@ def test_join():
 
     query, params = q.join()
 
-    assert query == "FOR foo IN @@collection_0"
+    assert query == "FOR foo IN @@collection_0 RETURN foo"
     assert params == {
         "@collection_0": "bar",
     }
