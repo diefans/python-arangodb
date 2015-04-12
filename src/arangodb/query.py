@@ -51,12 +51,12 @@ class Expression(object):
 
         yield self
 
-    def get_params(self, index):
+    def _get_params(self, index):
         """:returns: indexed params"""
 
         return {'_'.join((key, str(index))): value for key, value in self.params.iteritems()}
 
-    def get_term(self, index):
+    def _get_term(self, index):
         return ""
 
     def assemble(self):
@@ -76,7 +76,7 @@ class Expression(object):
         for expr in self:
             index = register_expr(expr)
 
-            yield expr.get_term(index), expr.get_params(index)
+            yield expr._get_term(index), expr._get_params(index)
 
     def join(self):
 
@@ -101,10 +101,10 @@ class KeyWord(Expression):
     def __iter__(self):
         yield self
 
-    def get_params(self, index):
+    def _get_params(self, index):
         return {}
 
-    def get_term(self, index):
+    def _get_term(self, index):
         return self.term
 
 
@@ -137,8 +137,17 @@ class Alias(Expression):
         super(Alias, self).__init__()
         self.name = name
 
-    def get_term(self, index):
+    def _get_term(self, index):
         return self.name
+
+    def __getattr__(self, name):
+
+
+
+class AliasAttr(Alias):
+    def __init__(self, parent, name):
+        super(AliasAttr, self).__init__(name)
+        self.parent = parent
 
 
 class ListExpression(Expression):
@@ -168,7 +177,7 @@ class Collection(ListExpression):
 
         self.params["@collection"] = self.collection
 
-    def get_term(self, index):
+    def _get_term(self, index):
         return "@@collection_{}".format(index)
 
 
