@@ -5,42 +5,26 @@ See https://docs.arangodb.com/Aql/Basics.html for details
 """
 
 import inspect
-from itertools import izip, chain
+from functools import wraps
+from itertools import izip, izip_longest, chain, repeat
+
+import ujson
 
 from collections import defaultdict, OrderedDict
 
 from . import api
 
 
-KEYWORDS = [
-    "FOR",
-    "RETURN",
-    "FILTER",
-    "SORT",
-    "LIMIT",
-    "LET",
-    "COLLECT",
-    "INSERT",
-    "UPDATE",
-    "REPLACE",
-    "REMOVE",
-    "WITH",
-    "ASC",
-    "DESC",
-    "IN",
-    "INTO",
-    "NOT",
-    "AND",
-    "OR",
-    "NULL",
-    "TRUE",
-    "FALSE",
-]
-
-
-
-
 class Expression(object):
+
+    """Everything is an expression.
+
+    The only thing to remenber is, that you should only directly yield a
+    subexpression, if it implements :py:meth:`Expression._get_term`, if that is
+    not the case, just yield from it.
+
+    """
+
     def __init__(self):
 
         # empty bind param map
@@ -57,7 +41,7 @@ class Expression(object):
         return {'_'.join((key, str(index))): value for key, value in self.params.iteritems()}
 
     def _get_term(self, index):
-        return ""
+        raise NotImplementedError("If this expression should have a term, you hav to implement it")
 
     def assemble(self):
         # hold index for each type and instance
@@ -90,11 +74,40 @@ class Expression(object):
         return ' '.join(terms), joined_params
 
 
-class KeyWord(Expression):
+class Value(Expression):
+    def __init__(self, value):
+        super(Value, self).__init__()
+        self.value = value
+
+    def _get_term(self, index):
+        return ujson.dumps(self.value)
+
+    @classmethod
+    def iter_fixed(cls, sequence):
+        """:returns: a generator which is wrapping none-expressions into :py:class:`Value`s"""
+
+        for value in sequence:
+            if not isinstance(value, Expression):
+                yield cls(value)
+
+            else:
+                yield value
+
+
+def iter_fix_value(wrapped):
+
+    @wraps(wrapped)
+    def decorator(*args, **kwargs):
+        return Value.iter_fixed(wrapped(*args, **kwargs))
+
+    return decorator
+
+
+class Term(Expression):
     term = ''
 
     def __init__(self, term):
-        super(KeyWord, self).__init__()
+        super(Term, self).__init__()
 
         self.term = term
 
@@ -106,6 +119,11 @@ class KeyWord(Expression):
 
     def _get_term(self, index):
         return self.term
+
+
+
+class KeyWord(Term):
+    pass
 
 
 FOR = KeyWord("FOR")
@@ -141,7 +159,25 @@ class Alias(Expression):
         return self.name
 
     def __getattr__(self, name):
+        attr = AliasAttr(self, name)
 
+        self.__dict__[name] = attr
+        return attr
+
+    def __eq__(self, other):
+        return Operator(self, other, _EQ)
+
+    def __lt__(self, other):
+        return Operator(self, other, _LT)
+
+    def __le__(self, other):
+        return Operator(self, other, _LE)
+
+    def __gt__(self, other):
+        return Operator(self, other, _GT)
+
+    def __ge__(self, other):
+        return Operator(self, other, _GE)
 
 
 class AliasAttr(Alias):
@@ -149,9 +185,95 @@ class AliasAttr(Alias):
         super(AliasAttr, self).__init__(name)
         self.parent = parent
 
+    def _get_term(self, index):
+        parent_term = self.parent._get_term(index)
 
-class ListExpression(Expression):
-    pass
+        return "{}.`{}`".format(parent_term, self.name)
+
+
+class Chain(Expression):
+    sep = None
+
+    def __init__(self, exprs):
+        super(Chain, self).__init__()
+
+        self.exprs = exprs
+
+    @iter_fix_value
+    def __iter__(self):
+        c = len(self.exprs)
+
+        for i, expr in enumerate(Value.iter_fixed(self.exprs)):
+            if expr is not None:
+                for subexpr in expr:
+                    yield subexpr
+
+            if i < c - 1 and self.sep is not None:
+                yield self.sep
+
+
+class ListExpression(Chain):
+    sep = Term(', ')
+
+
+class And(ListExpression):
+    sep = AND
+
+    def __init__(self, *exprs):
+        super(And, self).__init__(exprs)
+
+
+class Filter(And):
+
+    def __iter__(self):
+        yield FILTER
+
+        for expr in super(Filter, self).__iter__():
+            yield expr
+
+
+_EQ = Term("==")
+_LT = Term("<")
+_LE = Term("<=")
+_GT = Term(">")
+_GE = Term(">=")
+_NE = Term("!=")
+_IN = Term("IN")
+_NOT_IN = Term("NOT IN")
+
+_AND = Term("AND")
+_OR = Term("OR")
+_NOT = Term("NOT")
+
+
+class Operator(Expression):
+    op = _EQ
+
+    def __init__(self, a, b, op=None):
+        super(Operator, self).__init__()
+
+        if op is not None:
+            self.op = op
+
+        if not isinstance(a, Expression):
+            a = Value(a)
+
+        if not isinstance(b, Expression):
+            b = Value(b)
+
+        self.a = a
+        self.b = b
+
+    @iter_fix_value
+    def __iter__(self):
+        for expr in self.a:
+            yield expr
+
+        for expr in self.op:
+            yield expr
+
+        for expr in self.b:
+            yield expr
 
 
 class ReturnExpression(Expression):
@@ -165,7 +287,7 @@ class ReturnExpression(Expression):
             yield expr
 
 
-class Collection(ListExpression):
+class Collection(Expression):
     def __init__(self, collection):
         super(Collection, self).__init__()
 
@@ -204,10 +326,12 @@ class Query(ForExpression):
 
     """A query will join into an arango query plus bind params."""
 
-    def __init__(self, alias, list_expr, retr_expr):
+    def __init__(self, alias, list_expr, retr_expr, filter_expr=None):
         super(Query, self).__init__(alias, list_expr)
 
         self.retr_expr = retr_expr
+
+        self.filter_expr = filter_expr
 
     def collection(self, collection):
         self._collection = collection
@@ -215,6 +339,10 @@ class Query(ForExpression):
     def __iter__(self):
         for expr in super(Query, self).__iter__():
             yield expr
+
+        if self.filter_expr is not None:
+            for expr in self.filter_expr:
+                yield expr
 
         for expr in self.retr_expr:
             yield expr
