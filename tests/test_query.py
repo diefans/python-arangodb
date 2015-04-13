@@ -25,9 +25,9 @@ def test_query():
     alias = query.Alias("foo")
     q = query.Query(alias, query.Collection("bar"), query.Return(alias))
 
-    query, params = q.query()
+    qstr, params = q.query()
 
-    assert query == "FOR foo IN @@c_0 RETURN foo"
+    assert qstr == "FOR foo IN @@c_0 RETURN foo"
     assert params == {
         "@c_0": "bar",
     }
@@ -39,9 +39,9 @@ def test_query_alias_attr():
     alias = query.Alias("foo")
     q = query.Query(alias, query.Collection("bar"), query.Return(alias.bar))
 
-    query, params = q.query()
+    qstr, params = q.query()
 
-    assert query == "FOR foo IN @@c_0 RETURN foo.`bar`"
+    assert qstr == "FOR foo IN @@c_0 RETURN foo.`bar`"
     assert params == {
         "@c_0": "bar",
     }
@@ -73,9 +73,9 @@ def test_filter():
 
     q = query.Filter(1, 2, 3)
 
-    query, params = q.query()
+    qstr, params = q.query()
 
-    assert query == "FILTER @value_0 AND @value_1 AND @value_2"
+    assert qstr == "FILTER @value_0 AND @value_1 AND @value_2"
     assert params == {
         "value_0": 1,
         "value_1": 2,
@@ -95,9 +95,9 @@ def test_filter_and():
         query.Filter(alias == "1", alias2 <= 1)
     )
 
-    query, params = q.query()
+    qstr, params = q.query()
 
-    assert query == 'FOR foo IN @@c_0 FILTER foo == @value_0 AND bar <= @value_1 RETURN foo.`bar`'
+    assert qstr == 'FOR foo IN @@c_0 FILTER foo == @value_0 AND bar <= @value_1 RETURN foo.`bar`'
     assert params == {
         "@c_0": "bar",
         "value_0": "1",
@@ -110,10 +110,10 @@ def test_list():
 
     q = query.Chain([1, 2, 3])
 
-    query, params = q.query()
+    qstr, params = q.query()
 
     # so we have some artifacts ...?
-    assert query == "@value_0 @value_1 @value_2"
+    assert qstr == "@value_0 @value_1 @value_2"
     assert params == {'value_0': 1, 'value_1': 2, 'value_2': 3}
 
 
@@ -122,9 +122,9 @@ def test_operator():
 
     q = query.Operator(query.Alias("foo"), query.Alias("bar"))
 
-    query, params = q.query()
+    qstr, params = q.query()
 
-    assert query == "foo == bar"
+    assert qstr == "foo == bar"
     assert params == {}
 
 
@@ -137,9 +137,9 @@ def test_fast_query():
         .filter(alias == "1", alias2 <= 1)\
         .action(alias.bar)
 
-    query, params = q.query()
+    qstr, params = q.query()
 
-    assert query == 'FOR foo IN @@c_0 FILTER foo == @value_0 AND bar <= @value_1 RETURN foo.`bar`'
+    assert qstr == 'FOR foo IN @@c_0 FILTER foo == @value_0 AND bar <= @value_1 RETURN foo.`bar`'
     assert params == {
         "@c_0": "bar",
         "value_0": "1",
@@ -154,9 +154,50 @@ def test_function():
 
     q = query.PATHS(alias, 1)
 
-    query, params = q.query()
+    qstr, params = q.query()
 
-    assert query == "PATHS( foo , @value_0 )"
+    assert qstr == "PATHS( foo , @value_0 )"
     assert params == {
         "value_0": 1
     }
+
+
+def test_let():
+    from arangodb import query
+
+    a = query.Alias("foo")
+    q = query.Let(a, "bar")
+
+    qstr, params = q.query()
+
+    assert qstr == "LET foo = @value_0"
+    assert params == {
+        "value_0": "bar"
+    }
+
+
+def test_sort():
+    from arangodb import query
+
+    a = query.Alias("foo")
+    q = query.Sort(a.foo, query.Desc(a.bar))
+
+    qstr, params = q.query()
+
+    assert qstr == "SORT foo.`foo` , foo.`bar` DESC"
+
+
+def test_limit():
+    from arangodb import query
+
+    q = query.Limit(1, 10)
+
+    qstr, params = q.query()
+
+    assert qstr == "LIMIT 1, 10"
+
+    q = query.Limit(10)
+
+    qstr, params = q.query()
+
+    assert qstr == "LIMIT 10"

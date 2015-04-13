@@ -66,10 +66,14 @@ class Expression(object):
         for params in binds:
             joined_params.update(params)
 
+        # TODO instead joining with ' ' we can let Expression introduce spaces...
         return ' '.join(terms), joined_params
 
 
 class Param(object):
+
+    """Create a bind parameter."""
+
     def __init__(self, name):
         self.name = name
 
@@ -79,6 +83,12 @@ class Param(object):
 
 
 class Value(Expression):
+
+    """Inject values into a Query.
+
+    A :py:class:`Value` will create a bind parameter.
+    """
+
     param = Param('value')
 
     def __init__(self, value):
@@ -97,12 +107,18 @@ class Value(Expression):
     def iter_fixed(cls, sequence):
         """:returns: a generator which is wrapping none-expressions into :py:class:`Value`s"""
 
+        # TODO do we need an iterator for non-sequences?
         for value in sequence:
-            if not isinstance(value, Expression):
-                yield cls(value)
+            yield cls.fix(value)
 
-            else:
-                yield value
+    @classmethod
+    def fix(cls, value):
+        """If value is not an expression make it a :py:class:`Value`."""
+
+        if not isinstance(value, Expression):
+            return cls(value)
+
+        return value
 
 
 def iter_fix_value(wrapped):
@@ -120,7 +136,7 @@ class Term(Expression):
     def __init__(self, term):
         super(Term, self).__init__()
 
-        self.term = term
+        self.term = str(term)
 
     def __iter__(self):
         yield self
@@ -420,14 +436,8 @@ class Operator(Expression):
         if op is not None:
             self.op = op
 
-        if not isinstance(a, Expression):
-            a = Value(a)
-
-        if not isinstance(b, Expression):
-            b = Value(b)
-
-        self.a = a
-        self.b = b
+        self.a = Value.fix(a)
+        self.b = Value.fix(b)
 
     @iter_fix_value
     def __iter__(self):
@@ -438,6 +448,26 @@ class Operator(Expression):
             yield expr
 
         for expr in self.b:
+            yield expr
+
+
+class Let(Expression):
+    def __init__(self, alias, expr):
+        super(Let, self).__init__()
+
+        self.alias_expr = alias
+
+        self.expr = Value.fix(expr)
+
+    def __iter__(self):
+        yield LET
+
+        for expr in self.alias_expr:
+            yield expr
+
+        yield Term("=")
+
+        for expr in self.expr:
             yield expr
 
 
@@ -459,6 +489,60 @@ class Return(Action):
 
         for expr in self.alias:
             yield expr
+
+
+class SortCriteria(Expression):
+    term = ASC
+
+    def __init__(self, alias):
+        super(SortCriteria, self).__init__()
+
+        self.alias_expr = alias
+
+    def __iter__(self):
+        for expr in self.alias_expr:
+            yield expr
+
+        yield self.term
+
+
+class Asc(SortCriteria):
+    pass
+
+
+class Desc(SortCriteria):
+    term = DESC
+
+
+class Sort(Expression):
+    def __init__(self, *criteria):
+        super(Sort, self).__init__()
+
+        self.criteria_exprs = List(criteria)
+
+    def __iter__(self):
+        yield SORT
+
+        for expr in self.criteria_exprs:
+            yield expr
+
+
+class Limit(Expression):
+    def __init__(self, offset_count, count=None):
+        if count is None:
+            self.count, self.offset = offset_count, None
+
+        else:
+            self.count, self.offset = count, offset_count
+
+    def __iter__(self):
+        yield LIMIT
+
+        if self.offset is None:
+            yield Term(self.count)
+
+        else:
+            yield Term("{0.offset}, {0.count}".format(self))
 
 
 class Collection(Expression):
