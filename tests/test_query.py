@@ -135,7 +135,7 @@ def test_fast_query():
     alias2 = query.Alias("bar")
     q = query.Query(alias, query.Collection("bar"))\
         .filter(alias == "1", alias2 <= 1)\
-        .result(alias.bar)
+        .action(alias.bar)
 
     query, params = q.query()
 

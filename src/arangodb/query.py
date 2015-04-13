@@ -9,7 +9,7 @@ from itertools import izip
 
 from collections import defaultdict
 
-from . import util, cursor
+from . import meta, util, cursor
 
 
 class Expression(object):
@@ -441,7 +441,14 @@ class Operator(Expression):
             yield expr
 
 
-class Return(Expression):
+class Action(Expression):
+    """A Kind of mandatory command for a query to perform.
+
+    RETURN, REMOVE, INSERT, UPDATE, REPLACE
+    """
+
+
+class Return(Action):
     def __init__(self, alias_or_object):
         super(Return, self).__init__()
 
@@ -500,7 +507,12 @@ class For(Expression):
         return self
 
 
-class Query(Expression):
+class QueryBase(Expression):
+
+    __metaclass__ = meta.MetaQueryBase
+
+
+class Query(QueryBase):
 
     """A query will join into an arango query plus bind params."""
 
@@ -535,10 +547,23 @@ class Query(Expression):
 
         return self
 
-    def result(self, action):
-        self.action_expr = Return(action)
+    def action(self, action):
+        """Replace the action of that query."""
+
+        if isinstance(action, Action):
+            self.action_expr = action
+
+        else:
+            self.action_expr = Return(action)
 
         return self
+
+    def validate(self):
+        """Will ask the server to parse the query without executing it."""
+
+        query, _ = self.query()
+
+        return self.__class__.api.parse(query)
 
     @property
     def cursor(self):

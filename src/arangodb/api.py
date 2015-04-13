@@ -5,11 +5,11 @@ from functools import wraps, partial
 from itertools import imap, chain
 
 import requests
+from . import exc
+
 import logging
 
 LOG = logging.getLogger(__name__)
-
-from . import exc
 
 
 def json_result():
@@ -71,6 +71,7 @@ class Client(object):
         self.cursors = Cursors(self.api(self.database, 'cursor'))
         self.graphs = Graphs(self.api(self.database, 'gharial'))
         self.indexes = Indexes(self.api(self.database, 'index'))
+        self.queries = Queries(self.api(self.database, 'query'))
 
     def url(self, *path):
         """Return a full url to the arangodb server."""
@@ -366,3 +367,14 @@ class Indexes(Api):
         doc.update(kwargs)
 
         return self.api.post(json=doc, params=params)
+
+
+class Queries(Api):
+    def parse(self, query):
+        """Parse a query and validate it by the server."""
+
+        return self.api.post(
+            json={
+                'query': query
+            }
+        )
