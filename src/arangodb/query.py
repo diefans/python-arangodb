@@ -7,7 +7,9 @@ See https://docs.arangodb.com/Aql/Basics.html for details
 from functools import wraps
 from itertools import izip, imap
 
-from collections import defaultdict
+import operator
+
+from collections import defaultdict, OrderedDict
 
 from . import meta, util, cursor
 
@@ -27,7 +29,7 @@ class Expression(object):
 
         yield self
 
-    def _get_params(self, index):
+    def _get_params(self, index):           # pylint: disable=R0201
         """:returns: indexed params"""
 
         return {}
@@ -37,15 +39,17 @@ class Expression(object):
 
     def assemble(self):
         # hold index for each type and instance
-        expressions = defaultdict(list)
+        # we use an OrderedDict here because testing for list containment
+        # is not working with overloading compare operators
+        expressions = defaultdict(OrderedDict)
 
         def register_expr(expr):
             types = expressions[type(expr)]
 
             if expr not in types:
-                types.append(expr)
+                types[expr] = len(types)
 
-            return types.index(expr)
+            return types[expr]
 
         for expr in self:
             index = register_expr(expr)
@@ -62,6 +66,21 @@ class Expression(object):
             joined_params.update(params)
 
         return ''.join(terms), joined_params
+
+    def __eq__(self, other):
+        return Operator(self, other, _EQ)
+
+    def __lt__(self, other):
+        return Operator(self, other, _LT)
+
+    def __le__(self, other):
+        return Operator(self, other, _LE)
+
+    def __gt__(self, other):
+        return Operator(self, other, _GT)
+
+    def __ge__(self, other):
+        return Operator(self, other, _GE)
 
 
 class Param(object):
@@ -195,21 +214,6 @@ class Alias(Expression):
     def __repr__(self):
         return "<{0.__class__.__name__}: {0.name}>".format(self)
 
-    def __eq__(self, other):
-        return Operator(self, other, _EQ)
-
-    def __lt__(self, other):
-        return Operator(self, other, _LT)
-
-    def __le__(self, other):
-        return Operator(self, other, _LE)
-
-    def __gt__(self, other):
-        return Operator(self, other, _GT)
-
-    def __ge__(self, other):
-        return Operator(self, other, _GE)
-
 
 class AliasAttr(Alias):
     def __init__(self, parent, name):
@@ -232,6 +236,11 @@ class Chain(Expression):
     sep = None
 
     def __init__(self, exprs, **kwargs):
+        """
+        :param exprs: a sequence of expressions.
+        :param sep: an optional separator
+        """
+
         sep = kwargs.get("sep")
         if sep is not None:
 
@@ -241,7 +250,20 @@ class Chain(Expression):
 
             self.sep = sep
 
-        self.exprs = exprs
+        self.exprs = list(exprs)
+
+    def append(self, expr):
+        """Add an expression to the end of the list."""
+
+        self.exprs.append(expr)
+
+    def extend(self, exprs):
+        """Add an list of expressions to the end of the list."""
+
+        self.exprs.extend(exprs)
+
+    def __len__(self):
+        return len(self.exprs)
 
     @iter_fix_value
     def __iter__(self):
@@ -462,7 +484,13 @@ class Operator(Chain):
     op = _EQ
 
     def __init__(self, a, b, op=None):
-        super(Operator, self).__init__((Value.fix(a), op or self.op, Value.fix(b)))
+        self.a = a
+        self.b = b
+
+        if op is not None:
+            self.op = op
+
+        super(Operator, self).__init__((Value.fix(self.a), self.op, Value.fix(self.b)))
 
 
 class Let(Expression):
@@ -527,15 +555,15 @@ class Desc(SortCriteria):
     term = DESC
 
 
-class Sort(Expression):
-    def __init__(self, *criteria):
-        self.criteria_exprs = List(criteria)
+class Sort(List):
+    def __init__(self, *exprs):
+        super(Sort, self).__init__(exprs)
 
     def __iter__(self):
         yield SORT
         yield SPACE
 
-        for expr in self.criteria_exprs:
+        for expr in super(Sort, self).__iter__():
             yield expr
 
 
@@ -619,21 +647,53 @@ class Query(QueryBase):
     def __init__(self, alias, from_list,
                  action=None, filter=None, sort=None, limit=None):         # pylint: disable=W0622
         self.for_exprs = [For(alias, from_list)]
+
         self.action_expr = action
-        self.filter_expr = filter
-        self.sort_expr = sort
+
+        self.filter_expr = self._get_filter(filter)
+
+        self.sort_expr = self._get_sort(sort)
+
         self.limit_expr = limit
+
+    @staticmethod
+    def _get_filter(filter):
+        filter_expr = Filter()
+        if isinstance(filter, Filter):
+            filter_expr.extend(filter.exprs)
+
+        elif isinstance(filter, (list, tuple)):
+            filter_expr.extend(filter)
+
+        elif filter is not None:
+            filter_expr.append(filter)
+
+        return filter_expr
+
+    @staticmethod
+    def _get_sort(sort):
+        sort_expr = Sort()
+        if isinstance(sort, Sort):
+            sort_expr.extend(Sort.exprs)
+
+        elif isinstance(sort, (list, tuple)):
+            sort_expr.extend(sort)
+
+        elif sort is not None:
+            sort_expr.append(sort)
+
+        return sort_expr
 
     def __iter__(self):
         for for_expr in self.for_exprs:
             for expr in for_expr:
                 yield expr
-        if self.filter_expr is not None:
+        if len(self.filter_expr):
             yield SPACE
             for expr in self.filter_expr:
                 yield expr
 
-        if self.sort_expr is not None:
+        if len(self.sort_expr):
             yield SPACE
             for expr in self.sort_expr:
                 yield expr
@@ -648,7 +708,9 @@ class Query(QueryBase):
             yield expr
 
     def filter(self, *filters):
-        self.filter_expr = Filter(*filters)
+        """Adds a filter expr."""
+
+        self.filter_expr.extend(filters)
 
         return self
 
@@ -669,7 +731,7 @@ class Query(QueryBase):
         return self
 
     def sort(self, *criteria):
-        self.sort_expr = Sort(*criteria)
+        self.sort_expr.extend(criteria)
 
         return self
 

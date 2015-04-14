@@ -1,3 +1,6 @@
+import mock
+
+
 def test_iter_expr():
     from arangodb import query
 

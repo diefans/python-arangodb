@@ -140,12 +140,8 @@ class Edge(meta.EdgeBase):
             params['collection'] = collection.__collection_name__
             filters.append("FIND_FIRST(p.destination._id, @collection) == 0")
 
-        q = """
-            FOR p IN PATHS(@@doc, @@edge, @direction)
-                FILTER  {filters}
-                RETURN
-                    p.destination
-        """.format(filters=' && '.join(filters))
+        q = "FOR p IN PATHS(@@doc, @@edge, @direction) "\
+            "FILTER {filters} RETURN p.destination".format(filters=' && '.join(filters))
 
         return cursor.Cursor(q, params).iter_documents()
 
