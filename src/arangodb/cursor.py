@@ -3,6 +3,10 @@ from itertools import starmap
 
 from . import meta
 
+import logging
+
+LOG = logging.getLogger(__name__)
+
 
 class Cursor(meta.CursorBase):
 
@@ -51,6 +55,7 @@ class Cursor(meta.CursorBase):
     def iter_result(self):
         """Iterate over all batches of result."""
 
+        LOG.debug("Create query: `%s`, %s, %s", self.query, self.bind, self.kwargs)
         cursor = self.__class__.api.create(self.query, bind=self.bind, **self.kwargs)
 
         while cursor['result']:

@@ -1,19 +1,10 @@
 """Some classes to easy work with arangodb."""
 
-from . import meta, util, query, cursor
+from . import meta, util, query
 
 import logging
 
 LOG = logging.getLogger(__name__)
-
-
-class Document(meta.DocumentBase):
-    pass
-
-
-EDGE_DIRECTION_ANY = 'any'
-EDGE_DIRECTION_INBOUND = 'inbound'
-EDGE_DIRECTION_OUTBOUND = 'outbound'
 
 
 class QueryMixin(object):
@@ -32,7 +23,16 @@ class QueryMixin(object):
         return query.Query(cls.alias, query.Collection(cls))
 
 
-class Edge(meta.EdgeBase):
+class Document(meta.DocumentBase, QueryMixin):
+    pass
+
+
+EDGE_DIRECTION_ANY = 'any'
+EDGE_DIRECTION_INBOUND = 'inbound'
+EDGE_DIRECTION_OUTBOUND = 'outbound'
+
+
+class Edge(meta.EdgeBase, QueryMixin):
 
     """An edge between two documents.
 
@@ -120,30 +120,35 @@ class Edge(meta.EdgeBase):
         return edge
 
     @classmethod
-    def connections(cls, document, collection=None, direction=EDGE_DIRECTION_ANY):
+    def connections_query(cls, alias, document, direction=EDGE_DIRECTION_ANY):
         assert isinstance(document, meta.BaseDocument), "document is Document or Edge"
 
-        filters = [
-            "p.source._id == @doc_id",
-            "LENGTH(p.edges) == 1",
-        ]
+        # pylint: disable=W0212
+        q = query.Query(
+            alias,
+            query.PATHS(
+                query.Collection(document),
+                query.Collection(cls),
+                direction)
+        )\
+            .filter(alias.source._id == document._id)\
+            .filter(query.LENGTH(alias.edges) == 1)\
+            .action(alias.destination)
 
-        params = {
+        return q
 
-            "@doc": document.__class__.__collection_name__,
-            "@edge": cls.__collection_name__,
-            "direction": direction,
-            "doc_id": document['_id']
-        }
+    @classmethod
+    def connections(cls, document, collection=None, direction=EDGE_DIRECTION_ANY):
+        alias = query.Alias('p')
 
-        if collection:
-            params['collection'] = collection.__collection_name__
-            filters.append("FIND_FIRST(p.destination._id, @collection) == 0")
+        q = cls.connections_query(alias, document, direction)
 
-        q = "FOR p IN PATHS(@@doc, @@edge, @direction) "\
-            "FILTER {filters} RETURN p.destination".format(filters=' && '.join(filters))
+        if collection is not None:
+            # pylint: disable=W0212
+            q = q\
+                .filter(query.FIND_FIRST(alias.destination._id, collection.__collection_name__))
 
-        return cursor.Cursor(q, params).iter_documents()
+        return q.cursor.iter_documents()
 
     @classmethod
     def inbounds(cls, document, collection=None):

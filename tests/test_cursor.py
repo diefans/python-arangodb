@@ -4,7 +4,7 @@ import mock
 def test_find():
     from collections import OrderedDict
 
-    from arangodb.db import cursor
+    from arangodb import cursor
 
     col = "User"
 

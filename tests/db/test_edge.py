@@ -37,36 +37,19 @@ def test_document_from_to():
 
 @mock.patch("arangodb.cursor.Cursor")
 def test_connections(Cursor):
-    from arangodb import db, query
+    from arangodb import db
 
     db.Edge.connections(db.Document(_id="foo"))
 
     Cursor.assert_called_with(
-        "FOR p IN PATHS(@@doc, @@edge, @direction) FILTER "
-        "p.source._id == @doc_id "
-        "&& LENGTH(p.edges) == 1 "
-        "RETURN p.destination",
-        {'@edge': 'Edge', 'doc_id': 'foo', 'direction': 'any', '@doc': 'Document'}
-    )
-
-    alias = query.Alias("p")
-    q = query.Query(
-        alias,
-        query.PATHS(
-            query.Collection(db.Document),
-            query.Collection(db.Edge),
-            "any")
-    ).filter(alias.source._id == 1).filter(query.LENGTH(alias.edges) == 1).action(alias.destination)
-
-    qstr, params = q.query()
-
-    assert (qstr, params) == (
         'FOR p IN PATHS(@@c_0, @@c_1, @value_0) '
         'FILTER p.`source`.`_id` == @value_1 AND LENGTH(p.`edges`) == @value_2 '
+        # 'AND FIND_FIRST(p.`destination`.`_id`, @value_3) '
         'RETURN p.`destination`',
         {
+            'value_1': "foo",
             'value_2': 1,
-            'value_1': 1,
+            # 'value_3': 'Foo',
             'value_0': 'any',
             '@c_0': 'Document',
             '@c_1': 'Edge'
