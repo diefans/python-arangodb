@@ -22,11 +22,6 @@ class Expression(object):
 
     """
 
-    def __init__(self):
-
-        # empty bind param map
-        self.params = {}
-
     def __iter__(self):
         """Iterate over all terms and return a tuple of query string part and related bind params."""
 
@@ -35,7 +30,7 @@ class Expression(object):
     def _get_params(self, index):
         """:returns: indexed params"""
 
-        return {'_'.join((key, str(index))): value for key, value in self.params.iteritems()}
+        return {}
 
     def _get_term(self, index):
         raise NotImplementedError("If this expression should have a term, you have to implement it")
@@ -91,8 +86,6 @@ class Value(Expression):
     param = Param('value')
 
     def __init__(self, value):
-        super(Value, self).__init__()
-
         self.value = value
 
     def _get_term(self, index):
@@ -137,8 +130,6 @@ class Term(Expression):
     term = ''
 
     def __init__(self, term):
-        super(Term, self).__init__()
-
         self.term = str(term)
 
     def __iter__(self):
@@ -190,7 +181,6 @@ FALSE = KeyWord("FALSE")
 
 class Alias(Expression):
     def __init__(self, name):
-        super(Alias, self).__init__()
         self.name = name
 
     def _get_term(self, index):
@@ -242,8 +232,6 @@ class Chain(Expression):
     sep = None
 
     def __init__(self, exprs, **kwargs):
-        super(Chain, self).__init__()
-
         sep = kwargs.get("sep")
         if sep is not None:
 
@@ -479,8 +467,6 @@ class Operator(Chain):
 
 class Let(Expression):
     def __init__(self, alias, expr):
-        super(Let, self).__init__()
-
         self.alias_expr = alias
 
         self.expr = Value.fix(expr)
@@ -509,8 +495,6 @@ class Action(Expression):
 
 class Return(Action):
     def __init__(self, alias_or_object):
-        super(Return, self).__init__()
-
         self.alias = alias_or_object
 
     def __iter__(self):
@@ -525,8 +509,6 @@ class SortCriteria(Expression):
     term = ASC
 
     def __init__(self, alias):
-        super(SortCriteria, self).__init__()
-
         self.alias_expr = alias
 
     def __iter__(self):
@@ -547,8 +529,6 @@ class Desc(SortCriteria):
 
 class Sort(Expression):
     def __init__(self, *criteria):
-        super(Sort, self).__init__()
-
         self.criteria_exprs = List(criteria)
 
     def __iter__(self):
@@ -561,8 +541,6 @@ class Sort(Expression):
 
 class Limit(Expression):
     def __init__(self, offset_count, count=None):
-        super(Limit, self).__init__()
-
         if count is None:
             self.count, self.offset = offset_count, None
 
@@ -585,8 +563,6 @@ class Collection(Expression):
     param = Param('@c')
 
     def __init__(self, collection):
-        super(Collection, self).__init__()
-
         self.collection = getattr(collection, "__collection_name__", collection)
 
     def _get_params(self, index):
@@ -603,8 +579,6 @@ class Collection(Expression):
 
 class For(Expression):
     def __init__(self, alias, from_list):
-        super(For, self).__init__()
-
         self.alias_expr = alias
         self.list_expr = from_list
 
@@ -644,16 +618,10 @@ class Query(QueryBase):
 
     def __init__(self, alias, from_list,
                  action=None, filter=None, sort=None, limit=None):         # pylint: disable=W0622
-        super(Query, self).__init__()
-
         self.for_exprs = [For(alias, from_list)]
-
         self.action_expr = action
-
         self.filter_expr = filter
-
         self.sort_expr = sort
-
         self.limit_expr = limit
 
     def __iter__(self):
