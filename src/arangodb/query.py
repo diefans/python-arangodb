@@ -5,7 +5,7 @@ See https://docs.arangodb.com/Aql/Basics.html for details
 """
 
 from functools import wraps
-from itertools import izip
+from itertools import izip, imap
 
 from collections import defaultdict
 
@@ -38,7 +38,7 @@ class Expression(object):
         return {'_'.join((key, str(index))): value for key, value in self.params.iteritems()}
 
     def _get_term(self, index):
-        raise NotImplementedError("If this expression should have a term, you hav to implement it")
+        raise NotImplementedError("If this expression should have a term, you have to implement it")
 
     def assemble(self):
         # hold index for each type and instance
@@ -66,8 +66,7 @@ class Expression(object):
         for params in binds:
             joined_params.update(params)
 
-        # TODO instead joining with ' ' we can let Expression introduce spaces...
-        return ' '.join(terms), joined_params
+        return ''.join(terms), joined_params
 
 
 class Param(object):
@@ -93,6 +92,7 @@ class Value(Expression):
 
     def __init__(self, value):
         super(Value, self).__init__()
+
         self.value = value
 
     def _get_term(self, index):
@@ -102,6 +102,9 @@ class Value(Expression):
         return {
             self.param(index, False): self.value
         }
+
+    def __repr__(self):
+        return "<{0.__class__.__name__}: {0.value}>".format(self)
 
     @classmethod
     def iter_fixed(cls, sequence):
@@ -147,6 +150,15 @@ class Term(Expression):
     def _get_term(self, index):
         return self.term
 
+    def __repr__(self):
+        return "<{0.__class__.__name__}: {0.term}>".format(self)
+
+
+# some semantics
+SPACE = Term(" ")
+LPAR = Term("(")
+RPAR = Term(")")
+
 
 class KeyWord(Term):
     pass
@@ -190,6 +202,9 @@ class Alias(Expression):
         self.__dict__[name] = attr
         return attr
 
+    def __repr__(self):
+        return "<{0.__class__.__name__}: {0.name}>".format(self)
+
     def __eq__(self, other):
         return Operator(self, other, _EQ)
 
@@ -211,6 +226,9 @@ class AliasAttr(Alias):
         super(AliasAttr, self).__init__(name)
         self.parent = parent
 
+    def __repr__(self):
+        return "<{0.__class__.__name__}: {0.parent.name}.{0.name}>".format(self)
+
     def _get_term(self, index):
         parent_term = self.parent._get_term(index)          # pylint: disable=W0212
 
@@ -220,10 +238,20 @@ class AliasAttr(Alias):
 # pylint: disable=W0223
 
 class Chain(Expression):
+    # sep may be a chain
     sep = None
 
-    def __init__(self, exprs):
+    def __init__(self, exprs, **kwargs):
         super(Chain, self).__init__()
+
+        sep = kwargs.get("sep")
+        if sep is not None:
+
+            # make sep a Term
+            if not isinstance(sep, Expression):
+                sep = Term(sep)
+
+            self.sep = sep
 
         self.exprs = exprs
 
@@ -237,24 +265,37 @@ class Chain(Expression):
                     yield subexpr
 
             if i < c - 1 and self.sep is not None:
-                yield self.sep
+                for sep_expr in self.sep:
+                    yield sep_expr
+
+    def __repr__(self):
+        return "<{0.__class__.__name__}: {list}>"\
+            .format(self, list=" ".join(imap(repr, self.exprs)))
 
 
 class List(Chain):
-    sep = Term(',')
+    sep = Term(', ')
 
 
 class And(List):
-    sep = AND
+    sep = Chain((SPACE, AND, SPACE))
 
     def __init__(self, *exprs):
         super(And, self).__init__(exprs)
+
+
+class Or(List):
+    sep = Chain((SPACE, OR, SPACE))
+
+    def __init__(self, *exprs):
+        super(Or, self).__init__(exprs)
 
 
 class Filter(And):
 
     def __iter__(self):
         yield FILTER
+        yield SPACE
 
         for expr in super(Filter, self).__iter__():
             yield expr
@@ -266,12 +307,13 @@ class Function(List):
         super(Function, self).__init__(exprs)
 
     def __iter__(self):
-        yield Term(self.name + "(")
+        yield Term(self.name)
+        yield LPAR
 
         for expr in super(Function, self).__iter__():
             yield expr
 
-        yield Term(")")
+        yield RPAR
 
     @util.classproperty
     def name(cls):          # pylint: disable=E0213
@@ -427,28 +469,12 @@ _OR = Term("OR")
 _NOT = Term("NOT")
 
 
-class Operator(Expression):
+class Operator(Chain):
+    sep = SPACE
     op = _EQ
 
     def __init__(self, a, b, op=None):
-        super(Operator, self).__init__()
-
-        if op is not None:
-            self.op = op
-
-        self.a = Value.fix(a)
-        self.b = Value.fix(b)
-
-    @iter_fix_value
-    def __iter__(self):
-        for expr in self.a:
-            yield expr
-
-        for expr in self.op:
-            yield expr
-
-        for expr in self.b:
-            yield expr
+        super(Operator, self).__init__((Value.fix(a), op or self.op, Value.fix(b)))
 
 
 class Let(Expression):
@@ -461,11 +487,14 @@ class Let(Expression):
 
     def __iter__(self):
         yield LET
+        yield SPACE
 
         for expr in self.alias_expr:
             yield expr
 
+        yield SPACE
         yield Term("=")
+        yield SPACE
 
         for expr in self.expr:
             yield expr
@@ -486,6 +515,7 @@ class Return(Action):
 
     def __iter__(self):
         yield RETURN
+        yield SPACE
 
         for expr in self.alias:
             yield expr
@@ -503,6 +533,7 @@ class SortCriteria(Expression):
         for expr in self.alias_expr:
             yield expr
 
+        yield SPACE
         yield self.term
 
 
@@ -522,6 +553,7 @@ class Sort(Expression):
 
     def __iter__(self):
         yield SORT
+        yield SPACE
 
         for expr in self.criteria_exprs:
             yield expr
@@ -529,6 +561,8 @@ class Sort(Expression):
 
 class Limit(Expression):
     def __init__(self, offset_count, count=None):
+        super(Limit, self).__init__()
+
         if count is None:
             self.count, self.offset = offset_count, None
 
@@ -537,12 +571,14 @@ class Limit(Expression):
 
     def __iter__(self):
         yield LIMIT
+        yield SPACE
 
         if self.offset is None:
             yield Term(self.count)
 
         else:
-            yield Term("{0.offset}, {0.count}".format(self))
+            for expr in List((Term(self.offset), Term(self.count))):
+                yield expr
 
 
 class Collection(Expression):
@@ -561,6 +597,9 @@ class Collection(Expression):
     def _get_term(self, index):
         return self.param(index)
 
+    def __repr__(self):
+        return "<{0.__class__.__name__}: {0.collection}>".format(self)
+
 
 class For(Expression):
     def __init__(self, alias, from_list):
@@ -571,11 +610,14 @@ class For(Expression):
 
     def __iter__(self):
         yield FOR
+        yield SPACE
 
         for expr in self.alias_expr:
             yield expr
 
+        yield SPACE
         yield IN
+        yield SPACE
 
         for expr in self.list_expr:
             yield expr
@@ -600,7 +642,8 @@ class Query(QueryBase):
 
     """A query will join into an arango query plus bind params."""
 
-    def __init__(self, alias, from_list, action=None, filter=None):         # pylint: disable=W0622
+    def __init__(self, alias, from_list,
+                 action=None, filter=None, sort=None, limit=None):         # pylint: disable=W0622
         super(Query, self).__init__()
 
         self.for_exprs = [For(alias, from_list)]
@@ -609,15 +652,30 @@ class Query(QueryBase):
 
         self.filter_expr = filter
 
+        self.sort_expr = sort
+
+        self.limit_expr = limit
+
     def __iter__(self):
         for for_expr in self.for_exprs:
             for expr in for_expr:
                 yield expr
-
         if self.filter_expr is not None:
+            yield SPACE
             for expr in self.filter_expr:
                 yield expr
 
+        if self.sort_expr is not None:
+            yield SPACE
+            for expr in self.sort_expr:
+                yield expr
+
+        if self.limit_expr is not None:
+            yield SPACE
+            for expr in self.limit_expr:
+                yield expr
+
+        yield SPACE
         for expr in self.action_expr:
             yield expr
 
@@ -639,6 +697,16 @@ class Query(QueryBase):
 
         else:
             self.action_expr = Return(action)
+
+        return self
+
+    def sort(self, *criteria):
+        self.sort_expr = Sort(*criteria)
+
+        return self
+
+    def limit(self, *args):
+        self.limit_expr = Limit(*args)
 
         return self
 
