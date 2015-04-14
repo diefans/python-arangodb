@@ -256,3 +256,17 @@ def test_limit():
 
     assert qstr == "LIMIT 10"
     assert params == {}
+
+
+def test_in():
+    from arangodb import query
+
+    a = query.Alias("foo")
+    q = query.In(a, [1, 2, 3])
+
+    qstr, params = q.query()
+
+    assert qstr == "foo IN @value_0"
+    assert params == {
+        'value_0': [1, 2, 3]
+    }

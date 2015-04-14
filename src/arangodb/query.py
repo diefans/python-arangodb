@@ -7,8 +7,6 @@ See https://docs.arangodb.com/Aql/Basics.html for details
 from functools import wraps
 from itertools import izip, imap
 
-import operator
-
 from collections import defaultdict, OrderedDict
 
 from . import meta, util, cursor
@@ -200,10 +198,10 @@ FALSE = KeyWord("FALSE")
 
 class Alias(Expression):
     def __init__(self, name):
-        self.name = name
+        self.__name__ = name
 
     def _get_term(self, index):
-        return self.name
+        return self.__name__
 
     def __getattr__(self, name):
         attr = AliasAttr(self, name)
@@ -212,21 +210,21 @@ class Alias(Expression):
         return attr
 
     def __repr__(self):
-        return "<{0.__class__.__name__}: {0.name}>".format(self)
+        return "<{0.__class__.__name__}: {0.__name__}>".format(self)
 
 
 class AliasAttr(Alias):
     def __init__(self, parent, name):
         super(AliasAttr, self).__init__(name)
-        self.parent = parent
+        self.__parent__ = parent
 
     def __repr__(self):
-        return "<{0.__class__.__name__}: {0.parent.name}.{0.name}>".format(self)
+        return "<{0.__class__.__name__}: {0.__parent__.__name__}.{0.__name__}>".format(self)
 
     def _get_term(self, index):
-        parent_term = self.parent._get_term(index)          # pylint: disable=W0212
+        parent_term = self.__parent__._get_term(index)          # pylint: disable=W0212
 
-        return "{}.`{}`".format(parent_term, self.name)
+        return "{}.`{}`".format(parent_term, self.__name__)
 
 
 # pylint: disable=W0223
@@ -308,6 +306,25 @@ class Filter(And):
         yield SPACE
 
         for expr in super(Filter, self).__iter__():
+            yield expr
+
+
+class In(Expression):
+    def __init__(self, alias, expr):
+        self.alias_expr = alias
+
+        # might be a value or expression
+        self.expr = Value.fix(expr)
+
+    def __iter__(self):
+        for expr in self.alias_expr:
+            yield expr
+
+        yield SPACE
+        yield IN
+        yield SPACE
+
+        for expr in self.expr:
             yield expr
 
 
