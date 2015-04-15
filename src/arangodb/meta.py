@@ -223,7 +223,7 @@ class MetaGraphEdge(MetaEdgeBase):
             mcs.__graph_edges__[cls.__collection_name__] = cls
 
     @property
-    def api(cls):
+    def graph_api(cls):
         client = cls.client
 
         return api.Edges(client.api(client.database, 'gharial', cls.__graph__.__graph_name__, 'edge'))
@@ -269,7 +269,7 @@ class MetaGraphVertex(MetaDocumentBase):
             mcs.__graph_vertices__[cls.__collection_name__] = cls
 
     @property
-    def api(cls):
+    def graph_api(cls):
         client = cls.client
 
         return api.Edges(client.api(client.database, 'gharial', cls.__graph__.__graph_name__, 'vertex'))
@@ -368,6 +368,10 @@ class MetaGraph(MetaBase):
 
 def polymorph(wrapped):
     """Decorate a function which returns a raw ArangoDB document to create a document class instance."""
+
+    # TODO
+    # polymorph should deal with graph context
+    # so that a document gets becomes a vertex
 
     @wraps(wrapped)
     def decorator(*args, **kwargs):
@@ -478,7 +482,7 @@ class BaseDocument(object):
         if cls.__objective__ is not None:
             return cls.__objective__.deserialize(doc)
 
-        return doc.__data__.copy()
+        return doc.copy()
 
     def serialize(self):
         """Take the serializer to adjust the document."""
@@ -561,3 +565,40 @@ class IndexBase(object):
     """An index representation."""
 
     __metaclass__ = MetaIndexBase
+
+
+class GraphBase(object):
+
+    """The base class for edges and vertices."""
+
+    __graph__ = None
+
+    @classmethod
+    def _create(cls, doc):
+        """Create a db instance on the server."""
+
+        return cls.graph_api.create(cls.__collection_name__, doc)
+
+    def save(self):
+        """Save the document to db or update."""
+
+        serialized = self.serialize()
+
+        # test for existing key
+        if '_id' in self:
+            # replace
+            doc = self.__class__.graph_api.replace(serialized, self['_id'])
+
+        else:
+            # create
+            doc = self._create(serialized)
+
+        # update self
+        for k in ('_id', '_key', '_rev'):
+            self[k] = doc[k]
+
+    def delete(self):
+        """Delete a document."""
+
+        return self.__class__.graph_api.delete(self['_id'])
+

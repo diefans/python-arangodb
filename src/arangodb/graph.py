@@ -8,18 +8,11 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 
-class GraphBase(object):
-
-    """The base class for edges and vertices."""
-
-    __graph__ = None
-
-
-class GraphEdge(GraphBase):
+class GraphEdge(meta.GraphBase):
     __metaclass__ = meta.MetaGraphEdge
 
 
-class GraphVertex(GraphBase):
+class GraphVertex(meta.GraphBase):
     __metaclass__ = meta.MetaGraphVertex
 
 
