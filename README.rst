@@ -1,6 +1,8 @@
-# arangodb
+arangodb
+========
 
-## Objective
+Objective
+---------
 
 There are a couple of Python implementations for ArangoDB's rest API, but they
 do not fit my mind:
