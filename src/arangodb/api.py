@@ -5,6 +5,8 @@ from functools import wraps, partial
 from itertools import imap, chain
 
 import requests
+import requests.adapters
+
 from . import exc
 
 import logging

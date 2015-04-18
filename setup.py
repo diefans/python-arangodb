@@ -1,5 +1,7 @@
 """package setup"""
 
+__version__ = 0.0.4
+
 import sys
 
 from setuptools import setup, find_packages
@@ -30,7 +32,7 @@ class PyTest(TestCommand):
 
 setup(
     name="arangodb",
-    version="0.0.4",
+    version=__version__,
     classifiers=[
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: Apache Software License',
