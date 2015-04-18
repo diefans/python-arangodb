@@ -32,7 +32,9 @@ class PyTest(TestCommand):
 
 setup(
     name="arangodb",
+    author="Oliver Berger",
     author_email="diefans@gmail.com",
+    url="https://github.com/diefans/python-arangodb",
     version=__version__,
     classifiers=[
         'Development Status :: 4 - Beta',
