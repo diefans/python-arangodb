@@ -17,7 +17,7 @@ class Expression(object):
     """Everything is an expression.
 
     The only thing to remenber is, that you should only directly yield a
-    subexpression, if it implements :py:meth:`Expression._get_term`, if that is
+    subexpression, if it implements :py:meth:`.Expression._get_term`, if that is
     not the case, just yield from it.
 
     """
@@ -97,7 +97,7 @@ class Value(Expression):
 
     """Inject values into a Query.
 
-    A :py:class:`Value` will create a bind parameter.
+    A :py:class:`.Value` will create a bind parameter.
     """
 
     param = Param('value')
@@ -118,7 +118,7 @@ class Value(Expression):
 
     @classmethod
     def iter_fixed(cls, sequence):
-        """:returns: a generator which is wrapping none-expressions into :py:class:`Value`s"""
+        """:returns: a generator which is wrapping none-expressions into :py:class:`.Value`"""
 
         # TODO do we need an iterator for non-sequences?
         for value in sequence:
@@ -126,7 +126,7 @@ class Value(Expression):
 
     @classmethod
     def fix(cls, value):
-        """If value is not an expression make it a :py:class:`Value`."""
+        """If value is not an expression make it a :py:class:`.Value`."""
 
         if not isinstance(value, Expression):
             return cls(value)

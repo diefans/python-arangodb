@@ -3,10 +3,54 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to arangodb's documentation!
-====================================
 
-Contents:
+arangodb API
+============
+
+
+arangodb.db
+-----------
+
+.. automodule:: arangodb.db
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+arangodb.api
+------------
+
+.. automodule:: arangodb.api
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+arangodb.cursor
+---------------
+
+.. automodule:: arangodb.cursor
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+arangodb.query
+--------------
+
+.. automodule:: arangodb.query
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+arangodb.meta
+-------------
+
+.. automodule:: arangodb.meta
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 .. toctree::
    :maxdepth: 2

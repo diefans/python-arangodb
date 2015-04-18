@@ -1,6 +1,19 @@
 # -*- coding: utf-8 -*-
 
-__version__ = "0.0.9"
+
+import ConfigParser
+
+
+def get_version(cfg_file):
+    config = ConfigParser.ConfigParser()
+    config.read(cfg_file)
+
+    return config.get("bumpversion", "current_version")
+
+
+__version__ = get_version("../../setup.cfg")
+
+
 #
 # arangodb documentation build configuration file, created by
 # sphinx-quickstart on Sat Apr 18 21:26:04 2015.
