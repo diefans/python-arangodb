@@ -1,6 +1,6 @@
 """package setup"""
 
-__version__ = "0.0.5"
+__version__ = "0.0.6"
 
 import sys
 
@@ -32,6 +32,7 @@ class PyTest(TestCommand):
 
 setup(
     name="arangodb",
+    author_email="diefans@gmail.com",
     version=__version__,
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -41,7 +42,7 @@ setup(
     ],
     license='ApacheV2',
 
-    keyword="ArangoDB REST API Requests graph nosql database AQL",
+    keywords="ArangoDB REST API Requests graph nosql database AQL",
 
     package_dir={'': 'src'},
     namespace_packages=['arangodb'],
