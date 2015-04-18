@@ -624,8 +624,8 @@ class Collection(Expression):
 
 class For(Expression):
     def __init__(self, alias, from_list):
-        self.alias_expr = alias
-        self.list_expr = from_list
+        self.alias(alias)
+        self.from_list(from_list)
 
     def __iter__(self):
         yield FOR
@@ -674,7 +674,7 @@ class Query(QueryBase):
         self.limit_expr = limit
 
     @staticmethod
-    def _get_filter(filter):
+    def _get_filter(filter):            # pylint: disable=W0622
         filter_expr = Filter()
         if isinstance(filter, Filter):
             filter_expr.extend(filter.exprs)
@@ -753,6 +753,8 @@ class Query(QueryBase):
         return self
 
     def limit(self, *args):
+        """Set a limit to the query."""
+
         self.limit_expr = Limit(*args)
 
         return self
@@ -766,4 +768,6 @@ class Query(QueryBase):
 
     @property
     def cursor(self):
+        """Return a cursor for this query, ready to iterate."""
+
         return cursor.Cursor(*self.query())

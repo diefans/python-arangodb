@@ -507,10 +507,6 @@ class BaseDocument(object):
 
         return cls.deserialize(doc)
 
-    @classmethod
-    def find(cls, **kwargs):
-        return Cursor.find(cls, **kwargs).iter_documents()
-
     def save(self):
         """Save the document to db or update."""
 
@@ -601,4 +597,3 @@ class GraphBase(object):
         """Delete a document."""
 
         return self.__class__.graph_api.delete(self['_id'])
-

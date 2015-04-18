@@ -61,8 +61,17 @@ class Client(object):
 
         self.endpoint = endpoint.rstrip("/")
 
-        # use an external session
-        self.session = session or requests.Session()
+        # may use an external session
+        if session is None:
+            adapter = requests.adapters.HTTPAdapter(
+                pool_maxsize=100,
+                pool_connections=100
+            )
+
+            session = requests.Session()
+            session.mount(self.endpoint, adapter)
+
+        self.session = session
 
         # arango specific api
         self.collections = Collections(self.api(self.database, 'collection'))
@@ -198,7 +207,7 @@ class Collections(Api):
             return None
 
 
-class DocumentsMixin(Api):
+class DocumentsMixin(object):
 
     def create(self, collection, doc, createCollection=None):
         """Create a document."""
@@ -250,11 +259,11 @@ class DocumentsMixin(Api):
         return self.api.patch(*handle, json=doc, params=params)
 
 
-class Documents(DocumentsMixin):
+class Documents(Api, DocumentsMixin):
     pass
 
 
-class Edges(DocumentsMixin):
+class Edges(Api, DocumentsMixin):
     """Edge stuff."""
 
     def create(self, collection, _from, _to, edge):
