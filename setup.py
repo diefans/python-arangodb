@@ -30,13 +30,22 @@ class PyTest(TestCommand):
 
 setup(
     name="arangodb",
-    version="0.0.3",
+    version="0.0.4",
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'License :: OSI Approved :: Apache Software License',
+        'Programming Language :: Python :: 2.7',
+        'Topic :: Database',
+    ],
+    license='ApacheV2',
+
+    keyword="ArangoDB REST API Requests graph nosql database AQL",
 
     package_dir={'': 'src'},
     namespace_packages=['arangodb'],
     packages=find_packages(
         'src',
-        exclude=[]
+        exclude=["tests*"]
     ),
     entry_points="",
 
@@ -49,9 +58,7 @@ setup(
         # tests
         'pytest',
         'pytest-pep8',
-        #'pytest-greendots',
         'pytest-cache',
-        #'pytest-cov',
         'pytest-random',
         'mock',
     ]
