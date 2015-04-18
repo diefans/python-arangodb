@@ -52,6 +52,16 @@ arangodb.meta
     :undoc-members:
     :show-inheritance:
 
+
+arangodb.exc
+------------
+
+.. automodule:: arangodb.exc
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 .. toctree::
    :maxdepth: 2
 
