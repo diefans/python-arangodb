@@ -18,9 +18,12 @@ class QueryMixin(object):
 
     @util.classproperty
     def query(cls):
-        """Prepare a query against this collection."""
+        """Prepare a query against this collection.
 
-        return query.Query(cls.alias, query.Collection(cls))
+        The default action is to return the alias.
+        """
+
+        return query.Query(cls.alias, query.Collection(cls)).action(cls.alias)
 
 
 class Document(meta.DocumentBase, QueryMixin):
