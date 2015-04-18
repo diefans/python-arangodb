@@ -1,8 +1,8 @@
 """package setup"""
 
-__version__ = "0.0.8"
+__version__ = "0.0.9"
 
-import sys
+import sys, os
 
 from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
@@ -30,11 +30,19 @@ class PyTest(TestCommand):
         sys.exit(errno)
 
 
+def read(*paths):
+    """Build a file path from *paths* and return the contents."""
+    with open(os.path.join(*paths), 'r') as f:
+        return f.read()
+
+
 setup(
     name="arangodb",
     author="Oliver Berger",
     author_email="diefans@gmail.com",
     url="https://github.com/diefans/python-arangodb",
+    description='A Python client for ArangoDB REST API.',
+    long_description=read('README.rst'),
     version=__version__,
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -42,7 +50,7 @@ setup(
         'Programming Language :: Python :: 2.7',
         'Topic :: Database',
     ],
-    license='ApacheV2',
+    license='Apache License Version 2.0',
 
     keywords="ArangoDB REST API Requests graph nosql database AQL",
 
