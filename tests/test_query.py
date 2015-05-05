@@ -1,6 +1,3 @@
-import mock
-
-
 def test_iter_expr():
     from arangodb import query
 
@@ -174,15 +171,21 @@ def test_fast_query():
     alias2 = query.Alias("bar")
     q = query.Query(alias, query.Collection("bar"))\
         .filter(alias == "1", alias2 <= 1)\
+        .filter(alias != 1, alias > 1, alias < 2, alias >= 2)\
         .action(alias.bar)
 
     qstr, params = q.query()
 
-    assert qstr == 'FOR foo IN @@c_0 FILTER foo == @value_0 AND bar <= @value_1 RETURN foo.`bar`'
+    assert qstr == 'FOR foo IN @@c_0 FILTER foo == @value_0 AND bar <= @value_1'\
+        ' AND foo != @value_2 AND foo > @value_3 AND foo < @value_4 AND foo >= @value_5 RETURN foo.`bar`'
     assert params == {
         "@c_0": "bar",
         "value_0": "1",
-        "value_1": 1
+        "value_1": 1,
+        'value_2': 1,
+        'value_3': 1,
+        'value_4': 2,
+        'value_5': 2
     }
 
 

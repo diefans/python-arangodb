@@ -149,7 +149,7 @@ class Edge(meta.EdgeBase, QueryMixin):
         if collection is not None:
             # pylint: disable=W0212
             q = q\
-                .filter(query.FIND_FIRST(alias.destination._id, collection.__collection_name__))
+                .filter(query.FIND_FIRST(alias.destination._id, collection.__collection_name__) != -1)
 
         return q.cursor.iter_documents()
 

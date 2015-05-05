@@ -68,6 +68,9 @@ class Expression(object):
     def __eq__(self, other):
         return Operator(self, other, _EQ)
 
+    def __ne__(self, other):
+        return Operator(self, other, _NE)
+
     def __lt__(self, other):
         return Operator(self, other, _LT)
 
