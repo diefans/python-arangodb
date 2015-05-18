@@ -6,6 +6,7 @@ See https://docs.arangodb.com/Aql/Basics.html for details
 
 from functools import wraps
 from itertools import izip, imap
+from inspect import isclass
 
 from collections import defaultdict, OrderedDict
 
@@ -111,9 +112,17 @@ class Value(Expression):
     def _get_term(self, index):
         return self.param(index)
 
+    @property
+    def sanitized_value(self):
+        """We use requests library, which uses simplejson, which cannot handle sets."""
+        if isinstance(self.value, set):
+            return list(self.value)
+
+        return self.value
+
     def _get_params(self, index):
         return {
-            self.param(index, False): self.value
+            self.param(index, False): self.sanitized_value
         }
 
     def __repr__(self):
@@ -540,13 +549,18 @@ class Action(Expression):
     RETURN, REMOVE, INSERT, UPDATE, REPLACE
     """
 
+    def apply_to_query(self, query):
+        query.action_expr = self
+
 
 class Return(Action):
+    op = RETURN
+
     def __init__(self, alias_or_object):
         self.alias = alias_or_object
 
     def __iter__(self):
-        yield RETURN
+        yield self.op
         yield SPACE
 
         for expr in self.alias:
@@ -565,7 +579,6 @@ class SortCriteria(Expression):
 
         yield SPACE
         yield self.term
-
 
 class Asc(SortCriteria):
     pass
@@ -626,12 +639,14 @@ class Collection(Expression):
 
 
 class For(Expression):
+    op = FOR
+
     def __init__(self, alias, from_list):
         self.alias(alias)
         self.from_list(from_list)
 
     def __iter__(self):
-        yield FOR
+        yield self.op
         yield SPACE
 
         for expr in self.alias_expr:
@@ -650,9 +665,19 @@ class For(Expression):
         return self
 
     def from_list(self, from_list):
+        if isinstance(from_list, meta.BaseDocument):
+            from_list = Collection(from_list.__class__)
+
+        elif isclass(from_list) and issubclass(from_list, meta.BaseDocument):
+            from_list = Collection(from_list)
+
         self.list_expr = from_list
 
         return self
+
+
+class Remove(For, Action):
+    op = REMOVE
 
 
 class QueryBase(Expression):
@@ -743,7 +768,7 @@ class Query(QueryBase):
         """Replace the action of that query."""
 
         if isinstance(action, Action):
-            self.action_expr = action
+            action.apply_to_query(self)
 
         else:
             self.action_expr = Return(action)

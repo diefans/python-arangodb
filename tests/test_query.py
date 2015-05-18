@@ -273,3 +273,30 @@ def test_in():
     assert params == {
         'value_0': [1, 2, 3]
     }
+
+
+def test_remove():
+    from arangodb import query
+
+    a = query.Alias("foo")
+    q = query.Remove(a, query.Collection("bar"))
+
+    qstr, params = q.query()
+
+    assert qstr == "REMOVE foo IN @@c_0"
+    assert params == {
+        '@c_0': 'bar'
+    }
+
+
+def test_remove_query():
+    from arangodb import query
+
+    a = query.Alias("foo")
+    c = query.Collection("bar")
+
+    q = query.Query(a, c).action(query.Remove(a, c))
+
+    qstr, params = q.query()
+
+    assert qstr == "FOR foo IN @@c_0 REMOVE foo IN @@c_0"
