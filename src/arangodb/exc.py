@@ -45,6 +45,10 @@ class MetaApiError(type):
         return type.__call__(cls, code, num, message, *args, **kwargs)
 
 
+class Unauthorized(ArangoException):
+    pass
+
+
 class ApiError(ArangoException):
     """Raise when an api error occurs."""
 
@@ -68,6 +72,10 @@ class ApiError(ArangoException):
 
 class CollectionNotFound(ApiError):
     error_num = 1203
+
+
+class DuplicateName(ApiError):
+    error_num = 1207
 
 
 class CollectionTypeInvalid(ApiError):

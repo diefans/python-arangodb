@@ -46,7 +46,12 @@ def json_result():
                 # no error
                 return json_content
 
-            raise exc.ContentTypeException("No json content-type", response)
+            if response.status_code == 401:
+                raise exc.Unauthorized(response)
+
+            ex = exc.ContentTypeException("No json content-type", response)
+            LOG.error("Error while reading `%s` from API: %s", response.url, ex)
+            raise ex
 
         return wrapped
 
@@ -57,11 +62,13 @@ class Client(object):
 
     """A client for arangodb server."""
 
-    def __init__(self, database, endpoint="http://localhost:8529", session=None):
+    def __init__(self, database, endpoint="http://localhost:8529", session=None, auth=None):
         # default database
         self.database = database
 
         self.endpoint = endpoint.rstrip("/")
+
+        self.auth = auth
 
         # may use an external session
         if session is None:
@@ -121,24 +128,28 @@ class Client(object):
         else:
             prefix = ('_db', database, '_api')
 
-        return ApiProxy(self, *chain(prefix, path), **kwargs)
+        return ApiProxy(self, *chain(prefix, path), auth=self.auth, **kwargs)
 
 
 class SystemClient(Client):
 
     """A client to the system database of an arangodb server."""
 
-    def __init__(self, endpoint="http://localhost:8529", session=None):
-        super(SystemClient, self).__init__(None, endpoint=endpoint, session=session)
+    def __init__(self, endpoint="http://localhost:8529", session=None, auth=None):
+        super(SystemClient, self).__init__(None, endpoint=endpoint, session=session, auth=auth)
 
         # database api is only allowed for system database
         self.databases = Databases(self.api(None, 'database'))
 
-    def create_database(self, database):
+    def create_database(self, database, user=None):
         """Just create the actual database if not exists."""
 
         if database not in self.databases.databases:
-            self.databases.create(database)
+            if user:
+                self.databases.create(database, user)
+
+            else:
+                self.databases.create(database)
 
 
 class ApiProxy(object):
