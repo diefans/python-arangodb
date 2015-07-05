@@ -64,6 +64,7 @@ setup(
 
     install_requires=[
         'requests',
+        'six',
     ],
 
     cmdclass={'test': PyTest},
@@ -74,5 +75,6 @@ setup(
         'pytest-cache',
         'pytest-random',
         'mock',
+        'docker-py',
     ]
 )

@@ -11,7 +11,7 @@ class TestGraphEdge(object):
         assert MyGraphEdge.__collection_name__ == "MyEdge"
 
 
-def test_graph():
+def test_graph(docker_arangodb):
     from arangodb import db, graph
 
     class D1(db.Document):

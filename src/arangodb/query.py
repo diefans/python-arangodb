@@ -10,6 +10,8 @@ from inspect import isclass
 
 from collections import defaultdict, OrderedDict
 
+from six import with_metaclass
+
 from . import meta, util, cursor
 
 
@@ -680,9 +682,8 @@ class Remove(For, Action):
     op = REMOVE
 
 
-class QueryBase(Expression):
-
-    __metaclass__ = meta.MetaQueryBase
+class QueryBase(with_metaclass(meta.MetaQueryBase, Expression)):
+    pass
 
 
 class Query(QueryBase):

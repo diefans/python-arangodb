@@ -2,6 +2,8 @@
 The arangodb errors.
 """
 
+from six import with_metaclass
+
 
 class ArangoException(Exception):
     pass
@@ -49,10 +51,8 @@ class Unauthorized(ArangoException):
     pass
 
 
-class ApiError(ArangoException):
+class ApiError(with_metaclass(MetaApiError, ArangoException)):
     """Raise when an api error occurs."""
-
-    __metaclass__ = MetaApiError
 
     error_num = None
 

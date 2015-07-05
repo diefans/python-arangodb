@@ -6,6 +6,8 @@ from collections import OrderedDict
 from functools import wraps
 from itertools import chain
 
+from six import with_metaclass
+
 from . import api, exc
 
 import logging
@@ -382,11 +384,9 @@ def polymorph(wrapped):
     return decorator
 
 
-class BaseDocument(object):
+class BaseDocument(with_metaclass(MetaDocumentBase)):
 
     """Is an object, which is able to connect to a session."""
-
-    __metaclass__ = MetaDocumentBase
 
     def __init__(self, *args, **kwargs):
         self.__data__ = {}
@@ -539,28 +539,22 @@ class BaseDocument(object):
         )
 
 
-class DocumentBase(BaseDocument):
+class DocumentBase(with_metaclass(MetaDocumentBase, BaseDocument)):
 
     """Just an arangodb document."""
 
-    __metaclass__ = MetaDocumentBase
+
+class EdgeBase(with_metaclass(MetaEdgeBase, BaseDocument)):
+    pass
 
 
-class EdgeBase(BaseDocument):
-
-    __metaclass__ = MetaEdgeBase
-
-
-class CursorBase(object):
-
-    __metaclass__ = MetaCursorBase
+class CursorBase(with_metaclass(MetaCursorBase)):
+    pass
 
 
-class IndexBase(object):
+class IndexBase(with_metaclass(MetaIndexBase)):
 
     """An index representation."""
-
-    __metaclass__ = MetaIndexBase
 
 
 class GraphBase(object):
