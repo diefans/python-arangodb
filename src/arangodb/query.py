@@ -5,12 +5,12 @@ See https://docs.arangodb.com/Aql/Basics.html for details
 """
 
 from functools import wraps
-from itertools import izip, imap
 from inspect import isclass
 
 from collections import defaultdict, OrderedDict
 
 from six import with_metaclass
+from six.moves import map, zip
 
 from . import meta, util, cursor
 
@@ -60,7 +60,7 @@ class Expression(object):
     def query(self):
         """Create a query with its bind params assembled."""
 
-        terms, binds = izip(*list(self.assemble()))
+        terms, binds = zip(*list(self.assemble()))
 
         joined_params = {}
         for params in binds:
@@ -292,7 +292,7 @@ class Chain(Expression):
 
     def __repr__(self):
         return "<{0.__class__.__name__}: {list}>"\
-            .format(self, list=" ".join(imap(repr, self.exprs)))
+            .format(self, list=" ".join(map(repr, self.exprs)))
 
 
 class List(Chain):

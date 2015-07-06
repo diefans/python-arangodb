@@ -2,7 +2,10 @@
 
 
 from functools import wraps, partial
-from itertools import imap, chain
+from itertools import chain
+
+from six.moves import map
+from six import iteritems
 
 import requests
 import requests.adapters
@@ -94,7 +97,7 @@ class Client(object):
     def url(self, *path):
         """Return a full url to the arangodb server."""
 
-        return '/'.join(imap(str, chain((self.endpoint, ), path)))
+        return '/'.join(map(str, chain((self.endpoint, ), path)))
 
     @json_result()
     def get(self, *path, **kwargs):
@@ -312,7 +315,7 @@ class Graphs(Api):
 def remap_fields(dct, *include, **mapping):
     """Remap certain fields of a dict by yielding (key, value)."""
 
-    for k, v in dct.iteritems():
+    for k, v in iteritems(dct):
         # just define all possible keys
         # this is to prevent wrong ones
         if include and k not in include:

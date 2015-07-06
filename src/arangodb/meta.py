@@ -6,7 +6,7 @@ from collections import OrderedDict
 from functools import wraps
 from itertools import chain
 
-from six import with_metaclass
+from six import with_metaclass, itervalues, iteritems, iterkeys
 
 from . import api, exc
 
@@ -327,13 +327,13 @@ class MetaGraph(MetaBase):
         in_edge = set()
 
         edge_definitions = []
-        for edge in cls.__graph_edges__.itervalues():
+        for edge in itervalues(cls.__graph_edges__):
             edge_definitions.append(edge.__definition__)
             in_edge.update(set(edge.__from_vertices__) | set(edge.__to_vertices__))
 
         orphans = [
             name
-            for name, vertice in cls.__graph_vertices__.iteritems()
+            for name, vertice in iteritems(cls.__graph_vertices__)
             if vertice not in in_edge
         ]
 
@@ -350,8 +350,8 @@ class MetaGraph(MetaBase):
     def _create_graph(cls):
         # first create all graph collections
         for edge in chain(
-                cls.__graph_edges__.itervalues(),
-                cls.__graph_vertices__.itervalues()
+                itervalues(cls.__graph_edges__),
+                itervalues(cls.__graph_vertices__)
         ):
             edge._create_collection()       # pylint: disable=W0212
 
@@ -413,13 +413,13 @@ class BaseDocument(with_metaclass(MetaDocumentBase)):
         return self.__data__.keys()
 
     def iteritems(self):
-        return self.__data__.iteritems()
+        return iteritems(self.__data__)
 
     def iterkeys(self):
-        return self.__data__.iterkeys()
+        return iterkeys(self.__data__)
 
     def itervalues(self):
-        return self.__data__.itervalues()
+        return itervalues(self.__data__)
 
     def copy(self):
         clone = self.__class__()
@@ -427,7 +427,7 @@ class BaseDocument(with_metaclass(MetaDocumentBase)):
         return clone
 
     def update(self, *args, **kwargs):
-        for key, value in dict(*args, **kwargs).iteritems():
+        for key, value in iteritems(dict(*args, **kwargs)):
             self[key] = value
 
     def get(self, key, default=None):
