@@ -68,6 +68,10 @@ class Expression(object):
 
         return ''.join(terms), joined_params
 
+    # since we define __eq__, we also have to define the old __hash__ explicitely
+    # otherwise hashing gets lost in python 3
+    __hash__ = object.__hash__
+
     def __eq__(self, other):
         return Operator(self, other, _EQ)
 
